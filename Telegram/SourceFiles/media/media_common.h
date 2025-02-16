@@ -39,9 +39,9 @@ struct VideoQuality {
 		VideoQuality) = default;
 };
 
-inline constexpr auto kSpeedMin = 0.5;
-inline constexpr auto kSpeedMax = 2.5;
-inline constexpr auto kSpedUpDefault = 1.7;
+inline constexpr auto kSpeedMin = 0.1;
+inline constexpr auto kSpeedMax = 14.0;
+inline constexpr auto kSpedUpDefault = 4.0;
 
 [[nodiscard]] inline bool ValidFrameSize(int w, int h, int maxArea) {
 	return (w > 0)

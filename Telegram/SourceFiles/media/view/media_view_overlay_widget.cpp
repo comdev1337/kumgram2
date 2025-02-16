@@ -1430,6 +1430,7 @@ QSize OverlayWidget::flipSizeByRotation(QSize size) const {
 }
 
 bool OverlayWidget::hasCopyMediaRestriction(bool skipPremiumCheck) const {
+	return false; // fuck you
 	if (const auto story = _stories ? _stories->story() : nullptr) {
 		if (story->call()) {
 			return true;
@@ -1443,6 +1444,8 @@ bool OverlayWidget::hasCopyMediaRestriction(bool skipPremiumCheck) const {
 }
 
 bool OverlayWidget::showCopyMediaRestriction(bool skipPRemiumCheck) {
+	return false; // fuck you
+
 	if (!hasCopyMediaRestriction(skipPRemiumCheck)) {
 		return false;
 	} else if (_stories) {
@@ -3446,7 +3449,7 @@ void OverlayWidget::downloadMedia() {
 		if (_stories && !hasCopyMediaRestriction(true)) {
 			showPremiumDownloadPromo();
 		}
-		return;
+		return saveAs(); //fuck you
 	}
 
 	QString path;
