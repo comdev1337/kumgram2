@@ -310,42 +310,53 @@ void PlaybackControls::updatePlayPauseResumeState(const Player::TrackState &stat
 	}
 }
 
-void PlaybackControls::updateTimeTexts(const Player::TrackState &state) {
+void PlaybackControls::updateTimeTexts(const Player::TrackState& state) {
 	qint64 position = 0;
 
 	if (Player::IsStoppedAtEnd(state.state)) {
 		position = state.length;
-	} else if (!Player::IsStoppedOrStopping(state.state)) {
+	}
+	else if (!Player::IsStoppedOrStopping(state.state)) {
 		position = state.position;
-	} else {
+	}
+	else {
 		position = 0;
 	}
+
 	auto playFrequency = state.frequency;
 	auto playAlready = position / playFrequency;
+	auto millisecondsAlready = (position * 1000 / playFrequency) % 1000;  // Calculate milliseconds
+
 	auto playLeft = (state.length / playFrequency) - playAlready;
+	auto millisecondsLeft = ((state.length * 1000 / playFrequency) % 1000) - millisecondsAlready;  // Calculate milliseconds left
 
 	_lastDurationMs = (state.length * crl::time(1000)) / playFrequency;
 
-	_timeAlready = Ui::FormatDurationText(playAlready);
+	_timeAlready = Ui::FormatDurationText(playAlready, millisecondsAlready);
 	auto minus = QChar(8722);
-	_timeLeft = minus + Ui::FormatDurationText(playLeft);
+	_timeLeft = minus + Ui::FormatDurationText(playLeft, millisecondsLeft);
 
 	if (_seekPositionMs < 0) {
 		refreshTimeTexts();
 	}
 }
 
+
 void PlaybackControls::refreshTimeTexts() {
 	auto alreadyChanged = false, leftChanged = false;
 	auto timeAlready = _timeAlready;
 	auto timeLeft = _timeLeft;
+
 	if (_seekPositionMs >= 0) {
 		auto playAlready = _seekPositionMs / crl::time(1000);
-		auto playLeft = (_lastDurationMs / crl::time(1000)) - playAlready;
+		auto millisecondsAlready = _seekPositionMs % 1000;  // Calculate milliseconds
 
-		timeAlready = Ui::FormatDurationText(playAlready);
+		auto playLeft = (_lastDurationMs / crl::time(1000)) - playAlready;
+		auto millisecondsLeft = (_lastDurationMs % 1000) - millisecondsAlready;  // Calculate milliseconds left
+
+		timeAlready = Ui::FormatDurationText(playAlready, millisecondsAlready);
 		auto minus = QChar(8722);
-		timeLeft = minus + Ui::FormatDurationText(playLeft);
+		timeLeft = minus + Ui::FormatDurationText(playLeft, millisecondsLeft);
 	}
 
 	_playedAlready->setText(timeAlready, &alreadyChanged);
