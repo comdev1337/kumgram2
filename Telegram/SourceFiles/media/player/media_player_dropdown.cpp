@@ -212,7 +212,14 @@ void FillSpeedMenu(
 		const style::icon &icon;
 		const style::icon &iconActive;
 	};
+
+	// No idea how to change text for these
 	const auto points = std::vector<SpeedPoint>{
+		{
+			0.25,
+			tr::lng_voice_speed_slow,
+			st.slow,
+			st.slowActive },
 		{
 			0.5,
 			tr::lng_voice_speed_slow,
@@ -241,6 +248,21 @@ void FillSpeedMenu(
 		{
 			2.0,
 			tr::lng_voice_speed_super_fast,
+			st.superFast,
+			st.superFastActive },
+		{
+			3.0,
+			tr::lng_voice_speed_super_fast,
+			st.superFast,
+			st.superFastActive },
+		{
+			4.0,
+			tr::lng_voice_speed_super_fast,
+			st.superFast,
+			st.superFastActive },
+		{
+			6.0,
+			tr::lng_voice_speed_super_fast, 
 			st.superFast,
 			st.superFastActive },
 	};

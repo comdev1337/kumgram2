@@ -634,6 +634,7 @@ bool FileLoadTask::IsVideoFile(
 		u".mov"_q,
 		u".m4v"_q,
 		u".webm"_q,
+		u".mkv"_q,
 	};
 	return CheckMimeOrExtensions(filepath, filemime, mimes, extensions);
 }

@@ -139,6 +139,17 @@ QString FormatDurationText(qint64 duration) {
 	return (hours ? QString::number(hours) + ':' : QString()) + (minutes >= 10 ? QString() : QString('0')) + QString::number(minutes) + ':' + (seconds >= 10 ? QString() : QString('0')) + QString::number(seconds);
 }
 
+QString FormatDurationText(qint64 seconds, qint64 milliseconds) {
+	qint64 hours = (seconds / 3600);
+	qint64 minutes = (seconds % 3600) / 60;
+	qint64 remainingSeconds = seconds % 60;
+
+	return (hours ? QString::number(hours) + ':' : QString())
+		+ (minutes >= 10 ? QString() : QString('0')) + QString::number(minutes) + ':'
+		+ (remainingSeconds >= 10 ? QString() : QString('0')) + QString::number(remainingSeconds) + '.'
+		+ QString("%1").arg(milliseconds, 3, 10, QChar('0'));  // Ensure milliseconds have 3 digits
+}
+
 QString FormatDurationWords(qint64 duration) {
 	if (duration > 59) {
 		auto minutes = (duration / 60);
