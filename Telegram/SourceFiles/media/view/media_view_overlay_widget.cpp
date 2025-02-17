@@ -5515,7 +5515,7 @@ void OverlayWidget::playbackPauseResume() {
 	} else if (_streamed->instance.player().paused()) {
 		_streamed->instance.resume();
 		updatePlaybackState();
-		playbackPauseMusic();
+		//playbackPauseMusic();
 	} else {
 		_streamed->instance.pause();
 		updatePlaybackState();
@@ -5607,7 +5607,7 @@ void OverlayWidget::restartAtSeekPosition(crl::time position) {
 	if (_streamingStartPaused) {
 		_streamed->instance.pause();
 	} else {
-		playbackPauseMusic();
+		//playbackPauseMusic();
 		_streamedQualityChangeFinished = false;
 	}
 	_streamed->pausedBySeek = false;
@@ -6015,7 +6015,7 @@ void OverlayWidget::playbackResumeOnCall() {
 		_streamed->resumeOnCallEnd = false;
 		_streamed->instance.resume();
 		updatePlaybackState();
-		playbackPauseMusic();
+		//playbackPauseMusic();
 	}
 }
 
