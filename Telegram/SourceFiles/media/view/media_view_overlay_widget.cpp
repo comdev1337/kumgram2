@@ -5779,6 +5779,13 @@ void OverlayWidget::handleKeyPress(not_null<QKeyEvent*> e) {
 			if (key == Qt::Key_Escape) {
 				playbackToggleFullScreen();
 			} else if (ctrl) {
+				if (key == Qt::Key_0) {
+					_streamed->instance.setSpeed(1.0f);
+				}
+				else if (key >= Qt::Key_1 && key <= Qt::Key_9) {
+					const auto index = int(key - Qt::Key_0) + 1;
+					_streamed->instance.setSpeed(static_cast<float64>(index));
+				}
 			} else if (key == Qt::Key_0) {
 				activateControls();
 				restartAtSeekPosition(0);
@@ -5872,6 +5879,11 @@ void OverlayWidget::handleWheelEvent(not_null<QWheelEvent*> e) {
 	while (qAbs(_verticalWheelDelta) >= step) {
 		if (_verticalWheelDelta < 0) {
 			_verticalWheelDelta += step;
+			if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+				const auto speed = _streamed->instance.speed() + 0.2f;
+				_streamed->instance.setSpeed(speed);
+				return;
+			}
 			if (e->modifiers().testFlag(Qt::ControlModifier)) {
 				zoomOut();
 			} else if (acceptForJump) {
@@ -5879,6 +5891,12 @@ void OverlayWidget::handleWheelEvent(not_null<QWheelEvent*> e) {
 			}
 		} else {
 			_verticalWheelDelta -= step;
+			if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+				const auto speed = _streamed->instance.speed() - 0.2f;
+				if (speed > 0.05f)
+					_streamed->instance.setSpeed(speed);
+				return;
+			}
 			if (e->modifiers().testFlag(Qt::ControlModifier)) {
 				zoomIn();
 			} else if (acceptForJump) {
