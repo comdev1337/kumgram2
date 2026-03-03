@@ -330,6 +330,12 @@ void PlaybackControls::updateTimeTexts(const Player::TrackState& state) {
 	auto playLeft = (state.length / playFrequency) - playAlready;
 	auto millisecondsLeft = ((state.length * 1000 / playFrequency) % 1000) - millisecondsAlready;  // Calculate milliseconds left
 
+	if (millisecondsLeft < 0) {
+	    millisecondsLeft += 1000;
+	    if (playLeft > 0) {
+	        playLeft -= 1;
+	    }
+	}
 	_lastDurationMs = (state.length * crl::time(1000)) / playFrequency;
 
 	_timeAlready = Ui::FormatDurationText(playAlready, millisecondsAlready);
@@ -353,6 +359,13 @@ void PlaybackControls::refreshTimeTexts() {
 
 		auto playLeft = (_lastDurationMs / crl::time(1000)) - playAlready;
 		auto millisecondsLeft = (_lastDurationMs % 1000) - millisecondsAlready;  // Calculate milliseconds left
+
+        if (millisecondsLeft < 0) {
+            millisecondsLeft += 1000;
+            if (playLeft > 0) {
+                playLeft -= 1;
+            }
+        }
 
 		timeAlready = Ui::FormatDurationText(playAlready, millisecondsAlready);
 		auto minus = QChar(8722);
