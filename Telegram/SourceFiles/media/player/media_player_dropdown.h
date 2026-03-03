@@ -145,6 +145,8 @@ public:
 
 	[[nodiscard]] rpl::producer<> saved() const;
 	[[nodiscard]] rpl::producer<float64> realtimeValue() const;
+	void updateSpeedFromOutside(float64 newSpeed);
+	void toggleDefault();
 	void reloadFromLookup();
 	void setQualities(std::vector<VideoQuality> qualities);
 	void setApplySpeed(Fn<void(float64)> apply);
@@ -155,7 +157,6 @@ private:
 
 	[[nodiscard]] float64 speed() const;
 	[[nodiscard]] bool isDefault() const;
-	void toggleDefault();
 	void setSpeed(float64 newSpeed);
 	void setQuality(VideoQuality quality);
 	void save();
