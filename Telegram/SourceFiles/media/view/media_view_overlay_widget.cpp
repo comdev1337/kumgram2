@@ -7517,6 +7517,17 @@ void OverlayWidget::handleWheelEvent(not_null<QWheelEvent*> e) {
 	while (std::abs(_verticalWheelDelta) >= step) {
 		if (_verticalWheelDelta < 0) {
 			_verticalWheelDelta += step;
+			if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+				if (_streamed && _streamed->controls) {
+					const auto current = _streamed->instance.speed();
+					auto speed = current - Media::kSpeedStep;
+					if (current > 1.0 && speed < 1.0) {
+						speed = 1.0;
+					}
+					_streamed->controls->updatePlaybackSpeed(std::clamp(speed, Media::kSpeedMin, Media::kSpeedMax));
+				}
+				return;
+			}
 			if (e->modifiers().testFlag(Qt::ControlModifier)) {
 				zoomOut(anchor);
 			} else if (acceptForJump) {
@@ -7524,6 +7535,17 @@ void OverlayWidget::handleWheelEvent(not_null<QWheelEvent*> e) {
 			}
 		} else {
 			_verticalWheelDelta -= step;
+			if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+				if (_streamed && _streamed->controls) {
+					const auto current = _streamed->instance.speed();
+					auto speed = current + Media::kSpeedStep;
+					if (current < 1.0 && speed > 1.0) {
+						speed = 1.0;
+					}
+					_streamed->controls->updatePlaybackSpeed(std::clamp(speed, Media::kSpeedMin, Media::kSpeedMax));
+				}
+				return;
+			}
 			if (e->modifiers().testFlag(Qt::ControlModifier)) {
 				zoomIn(anchor);
 			} else if (acceptForJump) {
