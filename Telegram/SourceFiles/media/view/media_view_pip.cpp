@@ -1693,10 +1693,17 @@ void Pip::updatePlaybackTexts(
 	const auto playAlready = position / frequency;
 	const auto millisecondsAlready = (position * 1000 / frequency) % 1000;  // Calculate milliseconds
 
-	const auto playLeft = (length / frequency) - playAlready;
-	const auto millisecondsLeft = ((length * 1000 / frequency) % 1000) - millisecondsAlready;  // Calculate milliseconds left
+	auto playLeft = (length / frequency) - playAlready;
+	auto millisecondsLeft = ((length * 1000 / frequency) % 1000) - millisecondsAlready;  // Calculate milliseconds left
 
-	const auto already = Ui::FormatDurationText(playAlready, millisecondsAlready);
+	if (millisecondsLeft < 0) {
+		millisecondsLeft += 1000;
+		if (playLeft > 0) {
+			playLeft -= 1;
+		}
+	}
+
+	auto already = Ui::FormatDurationText(playAlready, millisecondsAlready);
 	const auto minus = QChar(8722);
 	const auto left = minus + Ui::FormatDurationText(playLeft, millisecondsLeft);
 
