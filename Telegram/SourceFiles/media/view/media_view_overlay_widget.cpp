@@ -4270,6 +4270,9 @@ void OverlayWidget::streamingReady(Streaming::Information &&info) {
 	if (videoShown()) {
 		applyVideoSize();
 		_streamedQualityChangeFrame = QImage();
+		if (_streamed && _streamed->controls) {
+			_streamed->controls->updateSpeedToggleQuality();
+		}
 	} else {
 		updateContentRect();
 	}
@@ -4773,20 +4776,32 @@ std::vector<int> OverlayWidget::playbackControlsQualities() {
 	auto result = std::vector<int>();
 	result.reserve(list.size());
 	for (const auto &quality : list) {
-		result.push_back(quality->resolveVideoQuality());
+		const auto res = quality->resolveVideoQuality();
+		const auto value = (quality == _document)
+			? (res + Media::kVideoQualityOriginalOffset)
+			: res;
+		result.push_back(value);
 	}
 	return result;
 }
 
 VideoQuality OverlayWidget::playbackControlsCurrentQuality() {
-	return _chosenQuality
-		? VideoQuality{
-			.manual = _quality.manual,
-			.height = uint32(_chosenQuality->resolveVideoQuality()),
+	if (!_chosenQuality) {
+		return _quality;
+	}
+	auto height = uint32(_chosenQuality->resolveVideoQuality());
+	if (_chosenQuality == _document && _streamed && _streamed->ready) {
+		const auto stream = _streamed->instance.info().video.size;
+		if (!stream.isEmpty()) {
+			const auto actual = uint32(std::min(
+				stream.width(),
+				stream.height()));
+			height = std::max(height, actual);
 		}
-		: _quality;
+		height += Media::kVideoQualityOriginalOffset;
+	}
+	return { .manual = _quality.manual, .height = height };
 }
-
 void OverlayWidget::playbackControlsQualityChanged(int quality) {
 	applyVideoQuality({
 		.manual = (quality > 0),

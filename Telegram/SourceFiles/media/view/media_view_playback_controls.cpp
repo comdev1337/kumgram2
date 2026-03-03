@@ -246,7 +246,7 @@ void PlaybackControls::saveQuality(int quality) {
 
 void PlaybackControls::updateSpeedToggleQuality() {
 	const auto quality = _delegate->playbackControlsCurrentQuality();
-	_speedToggle->setQuality(_qualitiesList.empty() ? 0 : quality.height);
+	_speedToggle->setQuality(quality.height);
 }
 
 void PlaybackControls::updatePlaybackSpeed(float64 speed) {

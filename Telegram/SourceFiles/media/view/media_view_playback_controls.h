@@ -65,6 +65,7 @@ public:
 	void setLoadingProgress(int64 ready, int64 total);
 	void setInFullScreen(bool inFullScreen);
 	void updatePlaybackSpeed(float64 speed);
+	void updateSpeedToggleQuality();
 	[[nodiscard]] bool hasMenu() const;
 	[[nodiscard]] bool dragging() const;
 
@@ -96,7 +97,6 @@ private:
 	void saveSpeed(float64 speed);
 
 	void saveQuality(int quality);
-	void updateSpeedToggleQuality();
 
 	const not_null<Delegate*> _delegate;
 

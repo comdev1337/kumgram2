@@ -578,10 +578,15 @@ void DocumentData::setVideoQualities(
 	}
 	qualities.erase(qualities.begin() + count, qualities.end());
 	if (!qualities.empty()) {
-		if (const auto mine = resolveVideoQuality()) {
-			if (mine > qualities.front()->resolveVideoQuality()) {
-				qualities.insert(begin(qualities), this);
+		auto mine = resolveVideoQuality();
+		for (const auto &quality : qualities) {
+			const auto qres = quality->resolveVideoQuality();
+			if (qres > mine) {
+				mine = qres;
 			}
+		}
+		if (mine) {
+			qualities.insert(begin(qualities), this);
 		}
 	}
 	data->qualities = std::move(qualities);
@@ -589,7 +594,21 @@ void DocumentData::setVideoQualities(
 
 int DocumentData::resolveVideoQuality() const {
 	const auto size = isVideoFile() ? dimensions : QSize();
-	return size.isEmpty() ? 0 : std::min(size.width(), size.height());
+	auto result = size.isEmpty() ? 0 : std::min(size.width(), size.height());
+	if (const auto data = video()) {
+		for (const auto &quality : data->qualities) {
+			if (quality != this) {
+				const auto qsize = quality->dimensions;
+				const auto qres = qsize.isEmpty()
+					? 0
+					: std::min(qsize.width(), qsize.height());
+				if (qres > result) {
+					result = qres;
+				}
+			}
+		}
+	}
+	return result;
 }
 
 auto DocumentData::resolveQualities(HistoryItem *context) const
@@ -611,19 +630,31 @@ not_null<DocumentData*> DocumentData::chooseQuality(
 		return this;
 	}
 	const auto height = int(request.height);
-	auto closest = this;
-	auto closestAbs = std::abs(height - resolveVideoQuality());
-	auto closestSize = size;
+	if (height >= Media::kVideoQualityOriginalOffset) {
+		return this;
+	}
+	
+	// If a standard quality is requested, try to find the best match
+	// among transcoded streams only
+	auto closest = (DocumentData*)nullptr;
+	auto closestAbs = -1;
+	auto closestSize = -1;
+	
 	for (const auto &quality : list) {
+		if (quality == this) {
+			continue; // Skip Original stream for standard quality requests
+		}
 		const auto abs = std::abs(height - quality->resolveVideoQuality());
-		if (abs < closestAbs
+		if (!closest 
+			|| abs < closestAbs
 			|| (abs == closestAbs && quality->size < closestSize)) {
 			closest = quality;
 			closestAbs = abs;
 			closestSize = quality->size;
 		}
 	}
-	return closest;
+	
+	return closest ? closest : this;
 }
 
 void DocumentData::validateLottieSticker() {

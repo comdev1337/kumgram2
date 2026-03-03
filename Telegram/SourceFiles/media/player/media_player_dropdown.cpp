@@ -845,7 +845,12 @@ void SpeedController::fillMenu(not_null<Ui::DropdownMenu*> menu) {
 
 	const auto add = [&](int quality) {
 		const auto automatic = tr::lng_mediaview_quality_auto(tr::now);
-		const auto text = quality ? u"%1p"_q.arg(quality) : automatic;
+		const auto offset = Media::kVideoQualityOriginalOffset;
+		const auto text = !quality
+			? automatic
+			: (quality >= offset)
+			? u"Original (%1p)"_q.arg(quality - offset)
+			: u"%1p"_q.arg(quality);
 		auto action = base::make_unique_q<Ui::Menu::Action>(
 			raw,
 			st.qualityMenu,
@@ -878,8 +883,14 @@ void SpeedController::fillMenu(not_null<Ui::DropdownMenu*> menu) {
 				: !quality;
 			raw->action()->setEnabled(!chosen);
 			if (!quality) {
-				raw->action()->setText(automatic
-					+ (now.manual ? QString() : u"\t%1p"_q.arg(now.height)));
+				const auto offset = Media::kVideoQualityOriginalOffset;
+				const auto displayHeight = (now.height >= offset)
+					? (now.height - offset)
+					: now.height;
+				const auto suffix = now.manual
+					? QString()
+					: u"\t%1p"_q.arg(displayHeight);
+				raw->action()->setText(automatic + suffix);
 			}
 			check->setVisible(chosen);
 		}, raw->lifetime());
