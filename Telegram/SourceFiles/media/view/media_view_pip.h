@@ -239,6 +239,7 @@ private:
 	void handleMousePress(QPoint position, Qt::MouseButton button);
 	void handleMouseRelease(QPoint position, Qt::MouseButton button);
 	void handleDoubleClick(Qt::MouseButton button);
+	void handleWheelEvent(not_null<QWheelEvent*> e);
 	void handleLeave();
 	void handleClose();
 

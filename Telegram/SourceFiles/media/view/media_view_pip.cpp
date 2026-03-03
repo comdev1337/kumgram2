@@ -1012,8 +1012,31 @@ void Pip::setupPanel() {
 		case QEvent::MouseButtonDblClick:
 			handleDoubleClick(mouseButton());
 			break;
+		case QEvent::Wheel:
+			handleWheelEvent(static_cast<QWheelEvent*>(e.get()));
+			break;
 		}
 	}, _panel.rp()->lifetime());
+}
+
+void Pip::handleWheelEvent(not_null<QWheelEvent*> e) {
+	if (e->modifiers().testFlag(Qt::ShiftModifier)) {
+		const auto step = int(QWheelEvent::DefaultDeltasPerStep);
+		const auto delta = e->angleDelta().y();
+		if (std::abs(delta) >= step) {
+		const auto sign = (delta > 0) ? 1 : -1;
+		const auto current = _instance->speed();
+		auto speed = current + sign * Media::kSpeedStep;
+		if (sign > 0 && current < 1.0 && speed > 1.0) {
+			speed = 1.0;
+		} else if (sign < 0 && current > 1.0 && speed < 1.0) {
+			speed = 1.0;
+		}
+		_instance->setSpeed(std::clamp(speed, Media::kSpeedMin, Media::kSpeedMax));
+			Core::App().settings().setVideoPlaybackSpeed(speed);
+			Core::App().saveSettingsDelayed();
+		}
+	}
 }
 
 void Pip::handleClose() {
@@ -1728,6 +1751,9 @@ void Pip::updatePlaybackTexts(
 	}
 
 	auto already = Ui::FormatDurationText(playAlready, millisecondsAlready);
+	if (!Media::EqualSpeeds(_instance->speed(), 1.0)) {
+		already += u" (%1x)"_q.arg(_instance->speed());
+	}
 	const auto minus = QChar(8722);
 	const auto left = minus + Ui::FormatDurationText(playLeft, millisecondsLeft);
 
