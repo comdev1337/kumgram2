@@ -606,12 +606,17 @@ int DocumentData::resolveVideoQuality() const {
 				}
 			}
 			if (result > 0) {
+				LOG(("MEDIA DEBUG: resolveVideoQuality guessed from variants for document (size: %1x%2). Returning: %3")
+					.arg(dimensions.width())
+					.arg(dimensions.height())
+					.arg(result));
 				return result;
 			}
 		}
 	}
 	const auto size = isVideoFile() ? dimensions : QSize();
 	const auto result = size.isEmpty() ? 0 : std::min(size.width(), size.height());
+	LOG(("MEDIA DEBUG: resolveVideoQuality called for document (size: %1x%2). Returning: %3").arg(size.width()).arg(size.height()).arg(result));
 	return result;
 }
 

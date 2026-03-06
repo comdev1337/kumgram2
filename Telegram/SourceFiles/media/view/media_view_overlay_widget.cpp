@@ -4274,6 +4274,7 @@ void OverlayWidget::streamingReady(Streaming::Information &&info) {
 			const auto targetDocument = _chosenQuality ? _chosenQuality : _document;
 			if (const auto video = targetDocument->video()) {
 				video->realVideoSize = info.video.realSize;
+				LOG(("MEDIA DEBUG: streamingReady cached realVideoSize: %1x%2").arg(video->realVideoSize.width()).arg(video->realVideoSize.height()));
 			}
 		}
 		applyVideoSize();
@@ -4681,6 +4682,10 @@ void OverlayWidget::restartAtSeekPosition(crl::time position) {
 	const auto durationDocument = (_chosenQuality && _chosenQuality != _document)
 		? _chosenQuality
 		: _document;
+
+	LOG(("MEDIA DEBUG: restartAtSeekPosition overrideDuration: %1, durationDocument duration: %2")
+		.arg(overrideDuration)
+		.arg(durationDocument ? durationDocument->duration() : 0));
 
 	auto options = Streaming::PlaybackOptions{
 		.position = position,
