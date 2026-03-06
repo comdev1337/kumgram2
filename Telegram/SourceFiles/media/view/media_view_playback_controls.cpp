@@ -240,7 +240,7 @@ void PlaybackControls::saveSpeed(float64 speed) {
 }
 
 void PlaybackControls::saveQuality(int quality) {
-	_speedToggle->setQuality(_qualitiesList.empty() ? 0 : quality);
+	_speedToggle->setQuality(quality);
 	_delegate->playbackControlsQualityChanged(quality);
 }
 

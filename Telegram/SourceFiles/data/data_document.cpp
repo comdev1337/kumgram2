@@ -593,21 +593,25 @@ void DocumentData::setVideoQualities(
 }
 
 int DocumentData::resolveVideoQuality() const {
-	const auto size = isVideoFile() ? dimensions : QSize();
-	auto result = size.isEmpty() ? 0 : std::min(size.width(), size.height());
 	if (const auto data = video()) {
-		for (const auto &quality : data->qualities) {
-			if (quality != this) {
-				const auto qsize = quality->dimensions;
-				const auto qres = qsize.isEmpty()
-					? 0
-					: std::min(qsize.width(), qsize.height());
-				if (qres > result) {
-					result = qres;
+		if (!data->realVideoSize.isEmpty()) {
+			const auto size = data->realVideoSize;
+			return std::min(size.width(), size.height());
+		}
+		if (!data->qualities.empty()) {
+			auto result = 0;
+			for (const auto &quality : data->qualities) {
+				if (quality != this) {
+					result = std::max(result, quality->resolveVideoQuality());
 				}
+			}
+			if (result > 0) {
+				return result;
 			}
 		}
 	}
+	const auto size = isVideoFile() ? dimensions : QSize();
+	const auto result = size.isEmpty() ? 0 : std::min(size.width(), size.height());
 	return result;
 }
 
