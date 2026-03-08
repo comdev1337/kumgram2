@@ -392,10 +392,12 @@ rpl::producer<bool> AllowsForwardingValue(not_null<PeerData*> peer) {
 			ChatDataFlag::NoForwards
 		) | rpl::map(!rpl::mappers::_1);
 	} else if (const auto channel = peer->asChannel()) {
-		return PeerFlagValue(
-			channel,
-			ChannelDataFlag::NoForwards
-		) | rpl::map(!rpl::mappers::_1);
+		return rpl::combine(
+			PeerFlagValue(channel, ChannelDataFlag::Fake),
+			PeerFlagValue(channel, ChannelDataFlag::NoForwards)
+		) | rpl::map([](bool fake, bool noForwards) {
+			return fake || !noForwards;
+		});
 	}
 	return rpl::single(true);
 }
