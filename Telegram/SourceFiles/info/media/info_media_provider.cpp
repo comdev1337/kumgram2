@@ -103,11 +103,13 @@ rpl::producer<bool> Provider::hasSelectRestrictionChanges() {
 	const auto chat = _peer->asChat();
 	const auto channel = _peer->asChannel();
 	auto noForwards = chat
-		? Data::PeerFlagValue(chat, ChatDataFlag::NoForwards)
-		: Data::PeerFlagValue(
-			channel,
-			ChannelDataFlag::NoForwards
-		) | rpl::type_erased;
+		? Data::PeerFlagValue(chat, ChatDataFlag::NoForwards) | rpl::type_erased
+		: rpl::combine(
+			Data::PeerFlagValue(channel, ChannelDataFlag::NoForwards),
+			Data::PeerFlagValue(channel, ChannelDataFlag::Fake)
+		) | rpl::map([](bool noForwards, bool fake) {
+			return noForwards && !fake;
+		}) | rpl::type_erased;
 
 	auto rights = chat
 		? chat->adminRightsValue()
