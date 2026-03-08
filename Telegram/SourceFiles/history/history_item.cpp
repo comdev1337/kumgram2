@@ -3258,6 +3258,9 @@ bool HistoryItem::canStopPoll() const {
 }
 
 bool HistoryItem::forbidsForward() const {
+	if (history()->peer->isFake()) {
+		return false;
+	}
 	return (_flags & MessageFlag::NoForwards);
 }
 
