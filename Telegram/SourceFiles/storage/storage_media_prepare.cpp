@@ -8,6 +8,20 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/storage_media_prepare.h"
 
 #include "data/data_document.h"
+#include "data/data_session.h"
+#include "main/main_session.h"
+#include "history/history.h"
+#include "history/history_item.h"
+#include "history/history_item_helpers.h"
+#include "data/data_msg_id.h"
+#include "data/data_peer_id.h"
+#include "data/data_document_media.h"
+#include "data/data_photo_media.h"
+#include "ui/image/image.h"
+#include "data/data_photo.h"
+#include "history/view/history_view_item_preview.h"
+#include "ui/text/text_utilities.h"
+#include "window/window_session_controller.h"
 #include "editor/photo_editor_common.h"
 #include "editor/scene/scene.h"
 #include "editor/scene/scene_item_sticker.h"
@@ -332,7 +346,7 @@ void PrepareDetails(PreparedFile &file, int previewWidth, int sideLimit) {
 
 	using Video = PreparedFileInformation::Video;
 	using Song = PreparedFileInformation::Song;
-	if (const auto image = std::get_if<Image>(
+	if (const auto image = std::get_if<Ui::PreparedFileInformation::Image>(
 			&file.information->media)) {
 		Assert(!image->data.isNull());
 		if (ValidPhotoForAlbum(*image, file.information->filemime)) {
@@ -344,7 +358,7 @@ void PrepareDetails(PreparedFile &file, int previewWidth, int sideLimit) {
 				file.type = PreparedFile::Type::None;
 			}
 		}
-	} else if (const auto video = std::get_if<Video>(
+	} else if (const auto video = std::get_if<Ui::PreparedFileInformation::Video>(
 			&file.information->media)) {
 		if (ValidVideoForAlbum(*video)) {
 			video->modifications.gif = !video->hasAudio;
@@ -421,7 +435,7 @@ void UpdateImageDetails(
 		PreparedFile &file,
 		int previewWidth,
 		int sideLimit) {
-	const auto image = std::get_if<Image>(&file.information->media);
+	const auto image = std::get_if<Ui::PreparedFileInformation::Image>(&file.information->media);
 	if (!image) {
 		return;
 	}
@@ -456,7 +470,7 @@ void UpdateImageDetails(
 bool ApplyModifications(PreparedList &list, bool composeAnimated) {
 	auto applied = false;
 	const auto apply = [&](PreparedFile &file, QSize strictSize = {}) {
-		const auto image = std::get_if<Image>(&file.information->media);
+		const auto image = std::get_if<Ui::PreparedFileInformation::Image>(&file.information->media);
 		const auto guard = gsl::finally([&] {
 			if (!image || strictSize.isEmpty()) {
 				return;
@@ -522,5 +536,138 @@ bool ApplyModifications(PreparedList &list, bool composeAnimated) {
 	return applied;
 }
 
-} // namespace Storage
 
+// Deserializes media references from clipboard and populates metadata.
+// Extract media metadata from clipboard using custom MIME format.
+// Uses Qt_5_1 for robust serialization across potential client instances.
+Ui::PreparedList ReadMediaRef(not_null<const QMimeData*> data) {
+	if (!data->hasFormat(u"application/x-td-media-ref"_q)) {
+		return {};
+	}
+	const auto refData = data->data(u"application/x-td-media-ref"_q);
+	QDataStream stream(refData);
+	stream.setVersion(QDataStream::Qt_5_1);
+	uint64 sessionId;
+	int32 count;
+	stream >> sessionId >> count;
+	if (stream.status() != QDataStream::Ok || count <= 0) {
+		return {};
+	}
+	auto session = SessionByUniqueId(sessionId);
+	if (!session) {
+		return {};
+	}
+	bool withCaption = false;
+	std::vector<HistoryItem*> items;
+	for (int i = 0; i < count; ++i) {
+	        uint64 peerId;
+	        int32 msgId;
+	        stream >> peerId >> msgId;
+	        const auto msgIdFull = FullMsgId(PeerId(peerId), msgId);
+	        if (const auto item = session->data().message(msgIdFull)) {
+	                items.push_back(item);
+	        }
+	}
+	stream >> withCaption;	auto list = Ui::PreparedList();
+	using Image = Ui::PreparedFileInformation::Image;
+	using Video = Ui::PreparedFileInformation::Video;
+	for (const auto item : items) {
+		const auto media = item->media();
+		if (!media) continue;
+
+		const auto isVideo = media->document()
+			&& (media->document()->isVideoFile()
+				|| media->document()->isAnimation()
+				|| media->document()->isGifv());
+
+		auto file = Ui::PreparedFile(QString());
+		file.information = std::make_unique<Ui::PreparedFileInformation>();
+
+		QByteArray itemRefData;
+		QDataStream itemStream(&itemRefData, QIODevice::WriteOnly);
+		itemStream.setVersion(QDataStream::Qt_5_1);
+		itemStream << sessionId
+			<< uint64(item->history()->peer->id.value)
+			<< int32(item->id.bare);
+		file.referenceData = itemRefData;
+		file.isReference = true;
+
+		auto preview = QImage();
+		if (auto doc = media->document()) {
+			if (isVideo) {
+				file.type = Ui::PreparedFile::Type::Video;
+			} else if (doc->isVoiceMessage() || doc->isSong()) {
+				file.type = Ui::PreparedFile::Type::Music;
+			} else {
+				file.type = Ui::PreparedFile::Type::File;
+			}
+			file.size = doc->size;
+			file.displayName = doc->filename();
+			file.information->filemime = doc->mimeString();
+			if (isVideo) {
+				file.originalDimensions = doc->dimensions;
+			}
+
+			if (file.type == Ui::PreparedFile::Type::Music) {
+				auto song = Ui::PreparedFileInformation::Song();
+				if (const auto data = doc->song()) {
+					song.title = data->title;
+					song.performer = data->performer;
+				}
+				song.duration = doc->duration();
+				file.information->media = std::move(song);
+			} else if (file.type == Ui::PreparedFile::Type::Video) {
+				auto video = Ui::PreparedFileInformation::Video();
+				video.isGifv = doc->isAnimation() || doc->isGifv();
+				video.duration = doc->duration();
+				file.information->media = std::move(video);
+			}
+
+			const auto mediaView = doc->activeMediaView();
+			if (mediaView && (file.type == Ui::PreparedFile::Type::Video)) {
+				if (const auto img = mediaView->thumbnail()) {
+					preview = img->original();
+				}
+			}
+		} else if (auto photo = media->photo()) {
+			file.type = Ui::PreparedFile::Type::Photo;
+			auto image = Ui::PreparedFileInformation::Image();
+			const auto mediaView = photo->activeMediaView();
+			if (mediaView) {
+				if (const auto img = mediaView->image(Data::PhotoSize::Large)) {
+					preview = img->original();
+				}
+			}
+			if (const auto size = photo->size(Data::PhotoSize::Large)) {
+				file.originalDimensions = *size;
+			}
+			image.data = preview;
+			file.information->media = std::move(image);
+		} else {
+			continue;
+		}
+
+		if (!preview.isNull()) {
+			file.preview = preview;
+			file.shownDimensions = preview.size();
+			file.originalDimensions = preview.size();
+			const auto info = file.information.get();
+			if (const auto image = std::get_if<Image>(&info->media)) {
+				image->data = preview;
+			} else if (const auto video = std::get_if<Video>(&info->media)) {
+				video->thumbnail = preview;
+			}
+		}
+
+		if (withCaption) {
+			const auto text = item->originalText();
+			file.caption.text = text.text;
+			file.caption.tags = TextUtilities::ConvertEntitiesToTextTags(
+				text.entities);
+		}
+		list.files.push_back(std::move(file));
+	}
+	return list;
+}
+
+} // namespace Storage

@@ -56,6 +56,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/delete_messages_box.h"
 #include "boxes/moderate_messages_box.h"
 #include "boxes/report_messages_box.h"
+#include "history/view/history_view_context_menu.h"
+#include "base/qt/qt_key_modifiers.h"
 #include "media/audio/media_audio.h"
 #include "media/view/media_view_group_thumbs.h"
 #include "media/view/media_view_pip.h"
@@ -2301,6 +2303,11 @@ void OverlayWidget::fillContextMenuActions(
 					: tr::lng_mediaview_copy(tr::now)),
 				[=] { copyMedia(); },
 				&st::mediaMenuIconCopy);
+			if (_message && _message->allowsForward()) {
+				addAction("Copy By Ref", [=] {
+					HistoryView::CopyMediaByRef(false, { _message });
+				}, &st::mediaMenuIconCopy);
+			}
 		}
 	}
 	if ((_photo && _photo->hasAttachedStickers())

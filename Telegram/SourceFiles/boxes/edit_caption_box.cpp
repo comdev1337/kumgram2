@@ -82,6 +82,15 @@ constexpr auto kChangesDebounceTimeout = crl::time(1000);
 		not_null<const QMimeData*> data,
 		bool premium) {
 	using Error = Ui::PreparedList::Error;
+	if (data->hasFormat(u"application/x-td-media-ref"_q)) {
+		auto result = Storage::ReadMediaRef(data);
+		if (!result.files.empty()) {
+			if (result.files.size() > 1) {
+				result.files.erase(result.files.begin() + 1, result.files.end());
+			}
+			return result;
+		}
+	}
 	const auto list = Core::ReadMimeUrls(data);
 	auto result = !list.isEmpty()
 		? Storage::PrepareMediaList(

@@ -93,9 +93,13 @@ using Ui::SendFilesWay;
 [[nodiscard]] inline bool CanAddUrls(const QList<QUrl> &urls) {
 	return !urls.isEmpty() && ranges::all_of(urls, &QUrl::isLocalFile);
 }
+[[nodiscard]] bool CanAddMediaRef(not_null<const QMimeData*> data) {
+	return data->hasFormat(u"application/x-td-media-ref"_q);
+}
+
 
 [[nodiscard]] bool CanAddFiles(not_null<const QMimeData*> data) {
-	return data->hasImage() || CanAddUrls(Core::ReadMimeUrls(data));
+	return CanAddMediaRef(data) || data->hasImage() || CanAddUrls(Core::ReadMimeUrls(data));
 }
 
 void FileDialogCallback(
@@ -2265,6 +2269,12 @@ bool SendFilesBox::addFiles(
 		not_null<const QMimeData*> data,
 		std::optional<bool> overrideSendImagesAsPhotos) {
 	const auto premium = _show->session().premium();
+
+	auto mediaRefList = Storage::ReadMediaRef(data);
+	if (!mediaRefList.files.empty()) {
+		return addFiles(std::move(mediaRefList));
+	}
+
 	const auto urls = Core::ReadMimeUrls(data);
 	const auto folder = Storage::SingleFolderPath(urls);
 	if (!folder.isEmpty()) {
@@ -2280,6 +2290,7 @@ bool SendFilesBox::addFiles(
 		list.files.push_back(Storage::PrepareFolderArchive(folder));
 		return addFiles(std::move(list));
 	}
+
 	auto list = [&] {
 		auto result = CanAddUrls(urls)
 			? Storage::PrepareMediaList(

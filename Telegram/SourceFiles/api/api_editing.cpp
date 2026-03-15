@@ -511,6 +511,38 @@ void EditMessageWithUploadedPhoto(
 		PrepareUploadedPhoto(item, std::move(info)));
 }
 
+void EditMessageWithMediaReference(
+		not_null<HistoryItem*> item,
+		const TextWithEntities &caption,
+		SendOptions options,
+		MTPInputMedia media) {
+	const auto done = [=](Fn<void()> applyUpdates) {
+		if (item) {
+			item->removeFromSharedMediaIndex();
+			applyUpdates();
+		}
+	};
+	const auto fail = [=](const QString &error) {
+		const auto session = &item->history()->session();
+		const auto mediaInvalid = (error == u"MEDIA_NEW_INVALID"_q);
+		if (mediaInvalid) {
+			Ui::show(
+				Ui::MakeInformBox(tr::lng_edit_media_invalid_file()),
+				Ui::LayerOption::KeepOther);
+		} else {
+			session->api().sendMessageFail(error, item->history()->peer);
+		}
+	};
+	EditMessage(
+		item,
+		caption,
+		Data::WebPageDraft(),
+		options,
+		done,
+		fail,
+		std::move(media));
+}
+
 mtpRequestId EditCaption(
 		not_null<HistoryItem*> item,
 		const TextWithEntities &caption,

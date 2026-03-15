@@ -46,6 +46,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/labels.h"
 #include "ui/effects/ripple_animation.h"
 #include "ui/effects/message_sending_animation_controller.h"
+#include "data/data_document.h"
+#include "data/data_media_types.h"
+#include "data/data_photo.h"
+#include "data/data_photo_media.h"
+#include "data/data_user.h"
+#include "history/view/history_view_item_preview.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/chat/message_bar.h"
@@ -82,7 +88,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_todo_list.h"
 #include "data/data_web_page.h"
-#include "data/data_document.h"
 #include "data/data_document_media.h"
 #include "data/data_photo.h"
 #include "data/data_photo_media.h"
@@ -91,7 +96,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat.h"
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
-#include "data/data_user.h"
 #include "data/data_chat_filters.h"
 #include "data/data_file_origin.h"
 #include "data/data_histories.h"
@@ -7926,7 +7930,7 @@ bool HistoryWidget::confirmSendingFiles(
 bool HistoryWidget::canSendFiles(not_null<const QMimeData*> data) const {
 	if (!canWriteMessage()) {
 		return false;
-	} else if (data->hasImage()) {
+	} else if (data->hasImage() || data->hasFormat(u"application/x-td-media-ref"_q)) {
 		return true;
 	} else if (const auto urls = Core::ReadMimeUrls(data); !urls.empty()) {
 		if (ranges::all_of(urls, &QUrl::isLocalFile)) {
@@ -7945,6 +7949,14 @@ bool HistoryWidget::confirmSendingFiles(
 			_composeSearch->hideAnimated();
 		} else {
 			return false;
+		}
+	}
+
+	if (data->hasFormat(u"application/x-td-media-ref"_q)) {
+		auto list = Storage::ReadMediaRef(data);
+		if (!list.files.empty()) {
+			confirmSendingFiles(std::move(list), insertTextOnCancel);
+			return true;
 		}
 	}
 

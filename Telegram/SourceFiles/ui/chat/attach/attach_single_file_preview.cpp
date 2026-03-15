@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
+#include "ui/item_text_options.h"
 #include "core/mime_type.h"
 #include "styles/style_chat.h"
 
@@ -50,13 +51,32 @@ void SingleFilePreview::preparePreview(const PreparedFile &file) {
 	AbstractSingleFilePreview::Data data;
 
 	auto preview = QImage();
-	if (const auto image = std::get_if<PreparedFileInformation::Image>(
-		&file.information->media)) {
-		preview = file.preview.isNull() ? image->data : file.preview;
-	} else if (const auto video = std::get_if<PreparedFileInformation::Video>(
-		&file.information->media)) {
-		preview = video->thumbnail;
+	auto songTitle = QString();
+	auto songPerformer = QString();
+	auto isAudio = false;
+
+	if (file.information) {
+		if (const auto image = std::get_if<PreparedFileInformation::Image>(
+				&file.information->media)) {
+			preview = file.preview.isNull() ? image->data : file.preview;
+		} else if (const auto video = std::get_if<PreparedFileInformation::Video>(
+				&file.information->media)) {
+			preview = video->thumbnail;
+		} else if (const auto song = std::get_if<PreparedFileInformation::Song>(
+						&file.information->media)) {
+			songTitle = song->title;
+			songPerformer = song->performer;
+			isAudio = true;
+			data.fileIsAudio = true;
+
+			if (auto cover = song->cover; !cover.isNull()) {
+				data.fileThumb = Ui::PrepareSongCoverForThumbnail(
+					cover,
+					st::attachPreviewLayout.thumbSize);
+			}
+		}
 	}
+
 	prepareThumbFor(data, preview);
 	const auto filepath = file.path;
 	if (file.archive) {
@@ -64,18 +84,23 @@ void SingleFilePreview::preparePreview(const PreparedFile &file) {
 		data.fileIsImage = false;
 		data.statusText = tr::lng_folder_archive_status(tr::now);
 	} else if (filepath.isEmpty()) {
-		const auto fallbackName = u"image.png"_q;
+		const auto isImage = (file.type == PreparedFile::Type::Photo);
+		const auto fallbackName = isAudio
+			? u"audio.mp3"_q
+			: (isImage ? u"image.png"_q : u"file"_q);
 		const auto displayName = file.displayName.isEmpty()
 			? fallbackName
 			: file.displayName;
-		data.name = displayName;
-		if (file.originalDimensions.isValid()) {
-			data.statusText = FormatImageSizeText(file.originalDimensions);
-			data.fileIsImage = true;
-		} else {
-			data.statusText = FormatSizeText(file.size);
-			data.fileIsImage = false;
-		}
+		data.name = Text::FormatSongName(
+			displayName,
+			songTitle,
+			songPerformer).string();
+		data.statusText = isAudio
+			? QString()
+			: isImage
+			? FormatImageSizeText(file.originalDimensions)
+			: FormatSizeText(file.size);
+		data.fileIsImage = isImage;
 	} else {
 		auto fileinfo = QFileInfo(filepath);
 		auto filename = file.displayName.isEmpty()
@@ -85,30 +110,13 @@ void SingleFilePreview::preparePreview(const PreparedFile &file) {
 			filename,
 			Core::MimeTypeForFile(fileinfo).name());
 
-		auto songTitle = QString();
-		auto songPerformer = QString();
-		if (file.information) {
-			if (const auto song = std::get_if<PreparedFileInformation::Song>(
-					&file.information->media)) {
-				songTitle = song->title;
-				songPerformer = song->performer;
-				data.fileIsAudio = true;
-
-				if (auto cover = song->cover; !cover.isNull()) {
-					data.fileThumb = Ui::PrepareSongCoverForThumbnail(
-						cover,
-						st::attachPreviewLayout.thumbSize);
-				}
-			}
-		}
-
 		data.name = Text::FormatSongName(filename, songTitle, songPerformer)
 			.string();
 		data.statusText = FormatSizeText(fileinfo.size());
 	}
 	auto caption = TextWithEntities{
 		file.caption.text,
-		TextUtilities::ConvertTextTagsToEntities(file.caption.tags),
+		TextUtilities::ConvertTextTagsToEntities(file.caption.tags)
 	};
 	caption = TextUtilities::SingleLine(caption);
 	data.caption.setMarkedText(
@@ -116,7 +124,6 @@ void SingleFilePreview::preparePreview(const PreparedFile &file) {
 		caption,
 		kMarkupTextOptions,
 		captionContext());
-
 	setData(std::move(data));
 }
 

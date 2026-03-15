@@ -4256,6 +4256,7 @@ void ApiWrap::editMedia(
 		.archive = file.archive,
 		.idOverride = 0,
 		.displayName = file.displayName,
+		.referenceData = file.referenceData,
 	}));
 }
 
@@ -4331,6 +4332,7 @@ void ApiWrap::sendFiles(
 			.archive = file.archive,
 			.idOverride = 0,
 			.displayName = file.displayName,
+			.referenceData = file.referenceData,
 		}));
 	}
 	if (album) {
@@ -5162,18 +5164,18 @@ void ApiWrap::uploadAlbumMedia(
 		item->history()->peer->input(),
 		media
 	)).done([=](const MTPMessageMedia &result) {
-		const auto item = _session->data().message(localId);
-		if (!item) {
+		const auto itemInner = session().data().message(localId);
+		if (!itemInner) {
 			failed();
 			return;
 		}
 		auto spoiler = false;
-		if (const auto media = item->media()) {
-			spoiler = media->hasSpoiler();
-			if (const auto photo = media->photo()) {
-				photo->setWaitingForAlbum();
-			} else if (const auto document = media->document()) {
-				document->setWaitingForAlbum();
+		if (const auto mediaInner = itemInner->media()) {
+			spoiler = mediaInner->hasSpoiler();
+			if (const auto photoInner = mediaInner->photo()) {
+				photoInner->setWaitingForAlbum();
+			} else if (const auto documentInner = mediaInner->document()) {
+				documentInner->setWaitingForAlbum();
 			}
 		}
 
@@ -5190,7 +5192,7 @@ void ApiWrap::uploadAlbumMedia(
 			const auto flags = Flag()
 				| (data.vttl_seconds() ? Flag::f_ttl_seconds : Flag())
 				| (spoiler ? Flag::f_spoiler : Flag());
-			const auto media = MTP_inputMediaPhoto(
+			const auto mediaInput = MTP_inputMediaPhoto(
 				MTP_flags(flags),
 				MTP_inputPhoto(
 					fields.vid(),
@@ -5198,7 +5200,7 @@ void ApiWrap::uploadAlbumMedia(
 					fields.vfile_reference()),
 				MTP_int(data.vttl_seconds().value_or_empty()),
 				MTPInputDocument()); // video
-			sendAlbumWithUploaded(item, groupId, media);
+			sendAlbumWithUploadedReference(itemInner, groupId, mediaInput);
 		} break;
 
 		case mtpc_messageMediaDocument: {
@@ -5219,7 +5221,7 @@ void ApiWrap::uploadAlbumMedia(
 				| (spoiler ? Flag::f_spoiler : Flag())
 				| (data.vvideo_timestamp() ? Flag::f_video_timestamp : Flag())
 				| (cover ? Flag::f_video_cover : Flag());
-			const auto media = MTP_inputMediaDocument(
+			const auto mediaInput = MTP_inputMediaDocument(
 				MTP_flags(flags),
 				MTP_inputDocument(
 					fields.vid(),
@@ -5234,8 +5236,10 @@ void ApiWrap::uploadAlbumMedia(
 				MTP_int(data.vvideo_timestamp().value_or_empty()),
 				MTP_int(data.vttl_seconds().value_or_empty()),
 				MTPstring()); // query
-			sendAlbumWithUploaded(item, groupId, media);
+			sendAlbumWithUploadedReference(itemInner, groupId, mediaInput);
 		} break;
+
+		default: failed(); break;
 		}
 	}).fail([=] {
 		failed();
@@ -5460,7 +5464,7 @@ void ApiWrap::sendMultiPaidMedia(
 	});
 }
 
-void ApiWrap::sendAlbumWithUploaded(
+void ApiWrap::sendAlbumWithUploadedReference(
 		not_null<HistoryItem*> item,
 		const MessageGroupId &groupId,
 		const MTPInputMedia &media) {

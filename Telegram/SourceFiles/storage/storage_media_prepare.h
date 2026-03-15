@@ -86,9 +86,11 @@ void UpdateVideoDetails(
 	int previewWidth,
 	int sideLimit);
 void UpdateImageDetails(
-	Ui::PreparedFile &file,
-	int previewWidth,
-	int sideLimit);
+        Ui::PreparedFile &file,
+        int previewWidth,
+        int sideLimit);
+
+[[nodiscard]] Ui::PreparedList ReadMediaRef(not_null<const QMimeData*> data);
 
 bool ApplyModifications(Ui::PreparedList &list, bool composeAnimated = false);
 

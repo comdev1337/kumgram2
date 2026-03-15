@@ -27,7 +27,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mtproto/facade.h"
 #include "lottie/lottie_animation.h"
 #include "history/history.h"
+#include "data/data_photo.h"
 #include "history/history_item.h"
+#include "history/history_item_helpers.h"
 #include "boxes/abstract_box.h"
 #include "boxes/send_files_box.h"
 #include "boxes/premium_limits_box.h"
@@ -523,7 +525,8 @@ FileLoadTask::FileLoadTask(Args &&args)
 , _forceFile(args.forceFile)
 , _sendLargePhotos(args.sendLargePhotos)
 , _animationJob(std::move(args.animationJob))
-, _archive(std::move(args.archive)) {
+, _archive(std::move(args.archive))
+, _referenceData(std::move(args.referenceData)) {
 	Expects(_to.options.scheduled
 		|| _to.options.shortcutId
 		|| !_to.replaceMediaOf
@@ -719,6 +722,15 @@ void FileLoadTask::process(ProcessArgs &&args) {
 		.spoiler = _spoiler,
 		.album = _album,
 	});
+
+	if (!_referenceData.isEmpty()) {
+		_result->isReference = true;
+		_result->referenceData = _referenceData;
+		_result->type = _type;
+		_result->partssize = 0;
+		return;
+	}
+
 	if (const auto cover = _videoCover.get()) {
 		cover->process();
 		if (const auto &result = cover->peekResult()) {
@@ -1243,15 +1255,15 @@ void FileLoadTask::finish() {
 		return;
 	}
 	const auto premium = session->user()->isPremium();
-	if (!_result || !_result->filesize || _result->filesize < 0) {
+	if (!_result || (!_result->isReference && (!_result->filesize || _result->filesize < 0))) {
 		Ui::show(
 			Ui::MakeInformBox((_result && _result->archive)
 				? tr::lng_folder_archive_failed(tr::now)
 				: tr::lng_send_image_empty(tr::now, lt_name, _filepath)),
 			Ui::LayerOption::KeepOther);
 		removeFromAlbum();
-	} else if (_result->filesize > kFileSizePremiumLimit
-		|| (_result->filesize > kFileSizeLimit && !premium)) {
+	} else if (!_result->isReference && (_result->filesize > kFileSizePremiumLimit
+		|| (_result->filesize > kFileSizeLimit && !premium))) {
 		Ui::show(
 			Box(FileSizeLimitBox, session, _result->filesize, nullptr),
 			Ui::LayerOption::KeepOther);

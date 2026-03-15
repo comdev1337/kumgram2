@@ -231,6 +231,9 @@ struct FilePrepareResult {
 
 	std::shared_ptr<FilePrepareResult> videoCover;
 
+	bool isReference = false;
+	QByteArray referenceData;
+
 	void setFileData(const QByteArray &filedata);
 	void setThumbData(const QByteArray &thumbdata);
 
@@ -269,6 +272,7 @@ public:
 		std::shared_ptr<Ui::PreparedFileArchive> archive;
 		uint64 idOverride = 0;
 		QString displayName;
+		QByteArray referenceData;
 	};
 
 	struct VoiceArgs {
@@ -341,6 +345,7 @@ private:
 	bool _sendLargePhotos = false;
 	std::shared_ptr<Media::Encode::Job> _animationJob;
 	std::shared_ptr<Ui::PreparedFileArchive> _archive;
+	QByteArray _referenceData;
 
 	std::shared_ptr<FilePrepareResult> _result;
 

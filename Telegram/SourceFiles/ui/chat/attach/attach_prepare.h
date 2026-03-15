@@ -119,6 +119,8 @@ struct PreparedFile {
 	bool sendLargePhotos = false;
 	std::shared_ptr<Media::Encode::Job> animationJob;
 	std::shared_ptr<PreparedFileArchive> archive;
+	QByteArray referenceData;
+	bool isReference = false;
 };
 
 [[nodiscard]] bool CanBeInAlbumType(PreparedFile::Type type, AlbumType album);
