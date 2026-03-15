@@ -43,6 +43,12 @@ void EditMessageWithUploadedPhoto(
 	RemoteFileInfo info,
 	SendOptions options);
 
+void EditMessageWithMediaReference(
+	not_null<HistoryItem*> item,
+	const TextWithEntities &caption,
+	SendOptions options,
+	MTPInputMedia media);
+
 mtpRequestId EditCaption(
 	not_null<HistoryItem*> item,
 	const TextWithEntities &caption,

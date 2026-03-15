@@ -241,6 +241,8 @@ bool CanSendFiles(not_null<const QMimeData*> data) {
 		if (ranges::all_of(urls, &QUrl::isLocalFile)) {
 			return true;
 		}
+	} else if (data->hasFormat(u"application/x-td-media-ref"_q)) {
+		return true;
 	}
 	return false;
 }
