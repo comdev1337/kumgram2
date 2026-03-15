@@ -67,6 +67,9 @@ void CopyPostLink(
 	FullMsgId itemId,
 	Context context,
 	std::optional<TimeId> videoTimestamp = {});
+
+void CopyMediaByRef(bool withCaption, const std::vector<HistoryItem*> &items);
+
 void CopyStoryLink(
 	std::shared_ptr<Main::SessionShow> show,
 	FullStoryId storyId);

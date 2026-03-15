@@ -358,6 +358,17 @@ public:
 		FullMsgId localId,
 		Api::RemoteFileInfo file,
 		Api::SendOptions options);
+	void sendAlbumWithUploadedReference(
+		not_null<HistoryItem*> item,
+		const MessageGroupId &groupId,
+		const MTPInputMedia &media);
+	void sendAlbumIfReady(not_null<SendingAlbum*> album);
+	void sendMediaWithRandomId(
+		not_null<HistoryItem*> item,
+		const MTPInputMedia &media,
+		Api::SendOptions options,
+		uint64 randomId,
+		Fn<void(bool)> done = nullptr);
 
 	void cancelLocalItem(not_null<HistoryItem*> item);
 
@@ -565,24 +576,13 @@ private:
 		not_null<HistoryItem*> item,
 		const MessageGroupId &groupId,
 		const MTPInputMedia &media);
-	void sendAlbumWithUploaded(
-		not_null<HistoryItem*> item,
-		const MessageGroupId &groupId,
-		const MTPInputMedia &media);
 	void sendAlbumWithCancelled(
 		not_null<HistoryItem*> item,
 		const MessageGroupId &groupId);
-	void sendAlbumIfReady(not_null<SendingAlbum*> album);
 	void sendMedia(
 		not_null<HistoryItem*> item,
 		const MTPInputMedia &media,
 		Api::SendOptions options,
-		Fn<void(bool)> done = nullptr);
-	void sendMediaWithRandomId(
-		not_null<HistoryItem*> item,
-		const MTPInputMedia &media,
-		Api::SendOptions options,
-		uint64 randomId,
 		Fn<void(bool)> done = nullptr);
 	void sendMultiPaidMedia(
 		not_null<HistoryItem*> item,

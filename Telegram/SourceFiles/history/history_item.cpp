@@ -663,12 +663,6 @@ HistoryItem::HistoryItem(
 		? DropDisallowedCustomEmoji(history->peer, original->originalText())
 		: original->originalText());
 
-	if (fields.groupedId) {
-		setGroupId(MessageGroupId::FromRaw(
-			history->peer->id,
-			fields.groupedId,
-			_flags & MessageFlag::IsOrWasScheduled));
-	}
 }
 
 HistoryItem::HistoryItem(
@@ -680,12 +674,6 @@ HistoryItem::HistoryItem(
 	createComponentsHelper(std::move(fields));
 	setMedia(media);
 	setText(textWithEntities);
-	if (fields.groupedId) {
-		setGroupId(MessageGroupId::FromRaw(
-			history->peer->id,
-			fields.groupedId,
-			_flags & MessageFlag::IsOrWasScheduled));
-	}
 }
 
 HistoryItem::HistoryItem(
@@ -785,6 +773,10 @@ HistoryItem::HistoryItem(
 , _date(fields.date)
 , _starsPaid(fields.starsPaid)
 , _shortcutId(fields.shortcutId)
+, _groupId(MessageGroupId::FromRaw(
+		history->peer->id,
+		fields.groupedId,
+		_flags & MessageFlag::IsOrWasScheduled))
 , _effectId(fields.effectId) {
 	Expects(!_shortcutId
 		|| isSending()

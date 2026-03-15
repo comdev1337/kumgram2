@@ -20,6 +20,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "history/view/history_view_list_widget.h"
 #include "history/view/history_view_cursor_state.h"
+
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_components.h"
@@ -94,9 +95,50 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_menu_icons.h"
 
 #include <QtGui/QGuiApplication>
+#include <QtCore/QMimeData>
 #include <QtGui/QClipboard>
+#include <ranges>
 
 namespace HistoryView {
+
+// Serializes session and message IDs into a custom clipboard format.
+// Serializes message references into application/x-td-media-ref.
+// Captures SessionUniqueId to prevent cross-session dereferencing.
+void CopyMediaByRef(bool withCaption, const std::vector<HistoryItem*> &items) {
+	if (items.empty()) {
+		return;
+	}
+	QByteArray data;
+	QDataStream stream(&data, QIODevice::WriteOnly);
+	stream.setVersion(QDataStream::Qt_5_1);
+	stream << uint64(items.front()->history()->session().uniqueId());
+	stream << int32(items.size());
+	for (const auto item : items) {
+		stream << uint64(item->history()->peer->id.value);
+		stream << int32(item->id.bare);
+	}
+	stream << bool(withCaption);
+
+	auto mime = std::make_unique<QMimeData>();
+	mime->setData(u"application/x-td-media-ref"_q, data);
+	QGuiApplication::clipboard()->setMimeData(mime.release());
+}
+
+void AddCopyByRefAction(
+		not_null<Ui::PopupMenu*> menu,
+		HistoryItem *item,
+		not_null<ListWidget*> list) {
+	const auto media = item ? item->media() : nullptr;
+	if (item && item->allowsForward() && media) {
+		const auto doc = media->document();
+		const auto photo = media->photo();
+		if (photo || (doc && !doc->sticker())) {
+		menu->addAction("Copy By Ref", [=] {
+			CopyMediaByRef(false, { item });
+		}, &st::menuIconCopy);
+		}
+	}
+}
 namespace {
 
 constexpr auto kRescheduleLimit = 20;
@@ -174,6 +216,7 @@ void AddPhotoActions(
 		not_null<PhotoData*> photo,
 		HistoryItem *item,
 		not_null<ListWidget*> list) {
+	AddCopyByRefAction(menu, item, list);
 	const auto contextId = item ? item->fullId() : FullMsgId();
 	if (!list->hasCopyMediaRestriction(item)) {
 		menu->addAction(
@@ -187,6 +230,7 @@ void AddPhotoActions(
 			const auto item = photo->owner().message(contextId);
 			if (!list->showCopyMediaRestriction(item)) {
 				CopyImage(photo);
+
 			}
 		}, &st::menuIconCopy);
 	}
@@ -242,6 +286,7 @@ void AddDocumentActions(
 		not_null<DocumentData*> document,
 		HistoryItem *item,
 		not_null<ListWidget*> list) {
+	AddCopyByRefAction(menu, item, list);
 	if (document->loading()) {
 		menu->addAction(tr::lng_context_cancel_download(tr::now), [=] {
 			document->cancel();
@@ -250,33 +295,16 @@ void AddDocumentActions(
 	}
 	const auto controller = list->controller();
 	const auto contextId = item ? item->fullId() : FullMsgId();
-	const auto session = &document->session();
-	if (item && document->isGifv()) {
-		const auto notAutoplayedGif = !Data::AutoDownload::ShouldAutoPlay(
-			document->session().settings().autoDownload(),
-			item->history()->peer,
-			document);
-		if (notAutoplayedGif) {
-			const auto weak = base::make_weak(list.get());
-			menu->addAction(tr::lng_context_open_gif(tr::now), [=] {
-				if (const auto strong = weak.get()) {
-					OpenGif(strong, contextId);
-				}
-			}, &st::menuIconShowInChat);
+
+	if (document->sticker()) {
+		if (document->sticker()->set) {
+			menu->addAction(
+				(document->isStickerSetInstalled()
+					? tr::lng_context_pack_info(tr::now)
+					: tr::lng_context_pack_add(tr::now)),
+				[=] { ShowStickerPackInfo(document, list); },
+				&st::menuIconStickers);
 		}
-		if (!list->hasCopyMediaRestriction(item)) {
-			menu->addAction(tr::lng_context_save_gif(tr::now), [=] {
-				SaveGif(list->controller(), contextId);
-			}, &st::menuIconGif);
-		}
-	}
-	if (document->sticker() && document->sticker()->set) {
-		menu->addAction(
-			(document->isStickerSetInstalled()
-				? tr::lng_context_pack_info(tr::now)
-				: tr::lng_context_pack_add(tr::now)),
-			[=] { ShowStickerPackInfo(document, list); },
-			&st::menuIconStickers);
 		const auto isFaved = document->owner().stickers().isFaved(document);
 		menu->addAction(
 			(isFaved
@@ -284,6 +312,26 @@ void AddDocumentActions(
 				: tr::lng_faved_stickers_add(tr::now)),
 			[=] { ToggleFavedSticker(controller, document, contextId); },
 			isFaved ? &st::menuIconUnfave : &st::menuIconFave);
+	}
+
+	if (document->isGifv()) {
+		const auto notAutoplayedGif = [&] {
+			return item
+				&& !Data::AutoDownload::ShouldAutoPlay(
+					controller->session().settings().autoDownload(),
+					item->history()->peer,
+					document);
+		}();
+		if (notAutoplayedGif) {
+			menu->addAction(tr::lng_context_open_gif(tr::now), [=] {
+				OpenGif(list, contextId);
+			}, &st::menuIconShowInChat);
+		}
+		if (!list->hasCopyMediaRestriction(item)) {
+			menu->addAction(tr::lng_context_save_gif(tr::now), [=] {
+				SaveGif(controller, contextId);
+			}, &st::menuIconGif);
+		}
 	}
 	if (!document->filepath(true).isEmpty()) {
 		menu->addAction(
@@ -296,7 +344,7 @@ void AddDocumentActions(
 	if (document->hasAttachedStickers()) {
 		const auto controller = list->controller();
 		auto callback = [=] {
-			auto &attached = session->api().attachedStickers();
+			auto &attached = document->session().api().attachedStickers();
 			attached.requestAttachedStickerSets(controller, document);
 		};
 		menu->addAction(
@@ -304,25 +352,26 @@ void AddDocumentActions(
 			std::move(callback),
 			&st::menuIconStickers);
 	}
-	if (item && !list->hasCopyMediaRestriction(item)) {
-		const auto controller = list->controller();
+	if (item
+		&& !list->hasCopyMediaRestriction(item)
+		&& !ItemHasTtl(item)) {
 		AddSaveSoundForNotifications(menu, item, document, controller);
-	}
-	if ((document->isVoiceMessage()
-			|| document->isVideoMessage())
-		&& Menu::HasRateTranscribeItem(item)) {
-		if (!menu->empty()) {
-			menu->insertAction(0, base::make_unique_q<Menu::RateTranscribe>(
-				menu,
-				menu->st().menu,
-				Menu::RateTranscribeCallbackFactory(item)));
+		if ((document->isVoiceMessage()
+				|| document->isVideoMessage())
+			&& Menu::HasRateTranscribeItem(item)) {
+			if (!menu->empty()) {
+				menu->insertAction(0, base::make_unique_q<Menu::RateTranscribe>(
+					menu,
+					menu->st().menu,
+					Menu::RateTranscribeCallbackFactory(item)));
+			}
 		}
+		AddSaveDocumentAction(menu, item, document, list);
+		AddCopyFilename(
+			menu,
+			document,
+			[=] { return list->showCopyRestrictionForSelected(); });
 	}
-	AddSaveDocumentAction(menu, item, document, list);
-	AddCopyFilename(
-		menu,
-		document,
-		[=] { return list->showCopyRestrictionForSelected(); });
 }
 
 void AddPostLinkAction(
@@ -1042,6 +1091,7 @@ void AddMessageActions(
 		const ContextMenuRequest &request,
 		not_null<ListWidget*> list) {
 	AddPostLinkAction(menu, request);
+	
 	AddForwardAction(menu, request, list);
 	AddSendNowAction(menu, request, list);
 	AddDeleteAction(menu, request, list);
@@ -1300,6 +1350,7 @@ base::unique_qptr<Ui::PopupMenu> FillContextMenu(
 		st::popupMenuWithIcons);
 
 	AddReplyToMessageAction(result, request, list);
+	
 	AddTodoListAction(result, request, list);
 
 	if (request.overSelection
@@ -1308,12 +1359,39 @@ base::unique_qptr<Ui::PopupMenu> FillContextMenu(
 		const auto text = request.selectedItems.empty()
 			? tr::lng_context_copy_selected(tr::now)
 			: tr::lng_context_copy_selected_items(tr::now);
+		if (!list->hasCopyRestrictionForSelected()) {
+			auto hasMedia = false;
+			auto items = std::vector<HistoryItem*>();
+			for (const auto &selectedItem : request.selectedItems) {
+				const auto selItem = list->controller()->session().data().message(
+					selectedItem.msgId);
+				if (selItem
+					&& selItem->media()
+					&& (selItem->media()->document()
+						|| selItem->media()->photo())) {
+					hasMedia = true;
+				}
+				if (selItem && selItem->allowsForward()) {
+					items.push_back(selItem);
+				}
+			}
+			if (hasMedia && items.size() > 1) {
+				// Ensure chronological visual order matches original chat sequence.
+ranges::sort(items, [&](not_null<HistoryItem*> a, not_null<HistoryItem*> b) {
+					return list->delegate()->listIsLessInOrder(a, b);
+				});
+				result->addAction("Copy By Ref", [=] {
+					CopyMediaByRef(false, items);
+				}, &st::menuIconCopy);
+			}
+		}
 		result->addAction(text, [=] {
 			if (!list->showCopyRestrictionForSelected()) {
 				TextUtilities::SetClipboardText(list->getSelectedText());
 			}
 		}, &st::menuIconCopy);
 	}
+	
 	if (request.overSelection
 		&& !Ui::SkipTranslate(list->getSelectedText().rich)) {
 		const auto owner = &view->history()->owner();
@@ -1330,6 +1408,7 @@ base::unique_qptr<Ui::PopupMenu> FillContextMenu(
 	}
 
 	AddTopMessageActions(result, request, list);
+	
 	if (lnkPhoto && request.selectedItems.empty()) {
 		AddPhotoActions(result, lnkPhoto, item, list);
 	} else if (lnkDocument) {
@@ -1338,8 +1417,11 @@ base::unique_qptr<Ui::PopupMenu> FillContextMenu(
 		const auto context = list->elementContext();
 		AddPollActions(result, poll, item, context, list->controller());
 	} else if (!request.overSelection && view && !hasSelection) {
-		const auto owner = &view->history()->owner();
 		const auto media = view->media();
+		if (media && !media->getDocument()) {
+			AddCopyByRefAction(result, item, list);
+		}
+		const auto owner = &view->history()->owner();
 		const auto mediaHasTextForCopy = media && media->hasTextForCopy();
 		if (const auto document = media ? media->getDocument() : nullptr) {
 			AddDocumentActions(result, document, view->data(), list);

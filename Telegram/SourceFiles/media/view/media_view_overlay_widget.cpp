@@ -47,6 +47,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/statistics/info_statistics_widget.h"
 #include "boxes/delete_messages_box.h"
 #include "boxes/report_messages_box.h"
+#include "history/view/history_view_context_menu.h"
+#include "base/qt/qt_key_modifiers.h"
 #include "media/audio/media_audio.h"
 #include "media/view/media_view_group_thumbs.h"
 #include "media/view/media_view_pip.h"
@@ -1730,16 +1732,20 @@ void OverlayWidget::fillContextMenuActions(
 	}
 	if (!hasCopyMediaRestriction()) {
 		if ((_document && documentContentShown()) || (_photo && _photoMedia->loaded())) {
-			addAction(
+			_menu->addAction(
 				((_document && _streamed)
 					? tr::lng_mediaview_copy_frame(tr::now)
 					: tr::lng_mediaview_copy(tr::now)),
 				[=] { copyMedia(); },
 				&st::mediaMenuIconCopy);
-		}
-	}
-	if ((_photo && _photo->hasAttachedStickers())
-		|| (_document && _document->hasAttachedStickers())) {
+			if (_message && _message->allowsForward()) {
+				_menu->addAction("Copy By Ref", [=] {
+					HistoryView::CopyMediaByRef(false, { _message });
+				}, &st::mediaMenuIconCopy);
+			}
+			}
+			}
+			if ((_photo && _photo->hasAttachedStickers())		|| (_document && _document->hasAttachedStickers())) {
 		addAction(
 			tr::lng_context_attached_stickers(tr::now),
 			[=] { showAttachedStickers(); },

@@ -6,6 +6,11 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_chat_section.h"
+#include "data/data_document.h"
+#include "data/data_media_types.h"
+#include "data/data_photo.h"
+#include "data/data_user.h"
+#include "history/view/history_view_item_preview.h"
 
 #include "history/view/controls/history_view_compose_controls.h"
 #include "history/view/controls/history_view_compose_search.h"
@@ -67,7 +72,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
-#include "data/data_user.h"
 #include "data/data_chat.h"
 #include "data/data_channel.h"
 #include "data/data_forum.h"
@@ -1120,6 +1124,14 @@ bool ChatWidget::confirmSendingFiles(
 		not_null<const QMimeData*> data,
 		std::optional<bool> overrideSendImagesAsPhotos,
 		const QString &insertTextOnCancel) {
+	if (data->hasFormat(u"application/x-td-media-ref"_q)) {
+		auto list = Storage::ReadMediaRef(data);
+		if (!list.files.empty()) {
+			confirmSendingFiles(std::move(list), insertTextOnCancel);
+			return true;
+		}
+	}
+
 	const auto hasImage = data->hasImage();
 	const auto premium = controller()->session().user()->isPremium();
 

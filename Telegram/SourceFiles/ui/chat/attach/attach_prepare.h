@@ -90,6 +90,8 @@ struct PreparedFile {
 	QSize originalDimensions;
 	Type type = Type::File;
 	bool spoiler = false;
+	QByteArray referenceData;
+	bool isReference = false;
 };
 
 [[nodiscard]] bool CanBeInAlbumType(PreparedFile::Type type, AlbumType album);

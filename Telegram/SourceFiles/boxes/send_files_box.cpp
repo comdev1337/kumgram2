@@ -79,9 +79,13 @@ using Ui::SendFilesWay;
 [[nodiscard]] inline bool CanAddUrls(const QList<QUrl> &urls) {
 	return !urls.isEmpty() && ranges::all_of(urls, &QUrl::isLocalFile);
 }
+[[nodiscard]] bool CanAddMediaRef(not_null<const QMimeData*> data) {
+	return data->hasFormat(u"application/x-td-media-ref"_q);
+}
+
 
 [[nodiscard]] bool CanAddFiles(not_null<const QMimeData*> data) {
-	return data->hasImage() || CanAddUrls(Core::ReadMimeUrls(data));
+	return CanAddMediaRef(data) || data->hasImage() || CanAddUrls(Core::ReadMimeUrls(data));
 }
 
 void FileDialogCallback(
@@ -1880,6 +1884,13 @@ void SendFilesBox::captionResized() {
 
 bool SendFilesBox::addFiles(not_null<const QMimeData*> data) {
 	const auto premium = _show->session().premium();
+	
+	// Check for media references first and handle them immediately
+	auto mediaRefList = Storage::ReadMediaRef(data);
+	if (!mediaRefList.files.empty()) {
+		return addFiles(std::move(mediaRefList));
+	}
+
 	auto list = [&] {
 		const auto urls = Core::ReadMimeUrls(data);
 		auto result = CanAddUrls(urls)

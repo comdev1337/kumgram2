@@ -2647,6 +2647,16 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 				}
 			}
 		}
+		if (item && item->allowsForward() && item->media()) {
+			const auto media = item->media();
+			const auto doc = media->document();
+			const auto photo = media->photo();
+			if (photo || (doc && !doc->sticker())) {
+				_menu->addAction("Copy By Ref", [=] {
+					HistoryView::CopyMediaByRef(false, { item });
+				}, &st::menuIconCopy);
+			}
+		}
 	};
 	const auto addPhotoActions = [&](not_null<PhotoData*> photo, HistoryItem *item) {
 		const auto media = photo->activeMediaView();
@@ -2981,6 +2991,24 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 			}
 			if (selectedState.count > 0 && !hasCopyRestrictionForSelected()) {
 				Menu::AddDownloadFilesAction(_menu, controller, _selected, this);
+				if (ranges::any_of(_selected, [](const auto &pair) {
+					const auto item = pair.first;
+					return item && item->media() && (item->media()->document() || item->media()->photo());
+				})) {
+					_menu->addAction("Copy By Ref", [=] {
+						const auto selected = getSelectedItems();
+						auto items = std::vector<HistoryItem*>();
+						items.reserve(selected.size());
+						for (const auto &msgId : selected) {
+							if (const auto item = session->data().message(msgId)) {
+								if (item->media() && (item->media()->document() || item->media()->photo())) {
+									items.push_back(item);
+								}
+							}
+						}
+						HistoryView::CopyMediaByRef(false, items);
+					}, &st::menuIconCopy);
+				}
 			}
 			_menu->addAction(tr::lng_context_clear_selection(tr::now), [=] {
 				_widget->clearSelected();
@@ -3244,6 +3272,24 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 			}
 			if (selectedState.count > 0 && !hasCopyRestrictionForSelected()) {
 				Menu::AddDownloadFilesAction(_menu, controller, _selected, this);
+				if (ranges::any_of(_selected, [](const auto &pair) {
+					const auto item = pair.first;
+					return item && item->media() && (item->media()->document() || item->media()->photo());
+				})) {
+					_menu->addAction("Copy By Ref", [=] {
+						const auto selected = getSelectedItems();
+						auto items = std::vector<HistoryItem*>();
+						items.reserve(selected.size());
+						for (const auto &msgId : selected) {
+							if (const auto item = session->data().message(msgId)) {
+								if (item->media() && (item->media()->document() || item->media()->photo())) {
+									items.push_back(item);
+								}
+							}
+						}
+						HistoryView::CopyMediaByRef(false, items);
+					}, &st::menuIconCopy);
+				}
 			}
 			_menu->addAction(tr::lng_context_clear_selection(tr::now), [=] {
 				_widget->clearSelected();

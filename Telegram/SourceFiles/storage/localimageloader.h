@@ -199,6 +199,9 @@ struct FilePrepareResult {
 
 	std::shared_ptr<FilePrepareResult> videoCover;
 
+	bool isReference = false;
+	QByteArray referenceData;
+
 	void setFileData(const QByteArray &filedata);
 	void setThumbData(const QByteArray &thumbdata);
 
@@ -234,6 +237,7 @@ public:
 		bool forceFile = false;
 		uint64 idOverride = 0;
 		QString displayName;
+		QByteArray referenceData;
 	};
 
 	struct VoiceArgs {
@@ -303,6 +307,7 @@ private:
 	TextWithTags _caption;
 	bool _spoiler = false;
 	bool _forceFile = false;
+	QByteArray _referenceData;
 
 	std::shared_ptr<FilePrepareResult> _result;
 
