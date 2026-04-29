@@ -376,6 +376,12 @@ bool Player::fileProcessPackets(
 					_audio->streamTimeBase()),
 				crl::time(0),
 				computeAudioDuration() - 1);
+			const auto duration = computeAudioDuration();
+			if (_information.audio.state.duration != kTimeUnknown
+					&& duration != kDurationUnavailable
+					&& duration > _information.audio.state.duration) {
+				_information.audio.state.duration = duration;
+			}
 			crl::on_main(&_sessionGuard, [=] {
 				audioReceivedTill(till);
 			});
@@ -396,12 +402,32 @@ bool Player::fileProcessPackets(
 					_video->streamTimeBase()),
 				crl::time(0),
 				computeVideoDuration() - 1);
+			const auto duration = computeVideoDuration();
+			if (_information.video.state.duration != kTimeUnknown
+					&& duration != kDurationUnavailable
+					&& duration > _information.video.state.duration) {
+				_information.video.state.duration = duration;
+			}
 			crl::on_main(&_sessionGuard, [=] {
 				videoReceivedTill(till);
 			});
 			_video->process(base::take(list));
 		} else {
 			list.clear(); // Free non-needed packets.
+		}
+	}
+	if (_audio && _information.audio.state.duration != kTimeUnknown) {
+		const auto duration = computeAudioDuration();
+		if (duration != kDurationUnavailable
+				&& duration > _information.audio.state.duration) {
+			_information.audio.state.duration = duration;
+		}
+	}
+	if (_video && _information.video.state.duration != kTimeUnknown) {
+		const auto duration = computeVideoDuration();
+		if (duration != kDurationUnavailable
+				&& duration > _information.video.state.duration) {
+			_information.video.state.duration = duration;
 		}
 	}
 	return fileReadMore();
@@ -411,6 +437,20 @@ void Player::fileProcessEndOfFile() {
 	_waitingForData = false;
 	_readTillEnd = true;
 	setDurationByPackets();
+	if (_audio && _information.audio.state.duration != kTimeUnknown) {
+		const auto duration = computeAudioDuration();
+		if (duration != kDurationUnavailable
+				&& duration > _information.audio.state.duration) {
+			_information.audio.state.duration = duration;
+		}
+	}
+	if (_video && _information.video.state.duration != kTimeUnknown) {
+		const auto duration = computeVideoDuration();
+		if (duration != kDurationUnavailable
+				&& duration > _information.video.state.duration) {
+			_information.video.state.duration = duration;
+		}
+	}
 	const auto generateEmptyQueue = [] {
 		auto result = std::vector<FFmpeg::Packet>();
 		result.emplace_back();
@@ -462,7 +502,7 @@ int Player::durationByPacket(
 		const Track &track,
 		const FFmpeg::Packet &packet) {
 	// We've set this value on the first cycle.
-	if (_loopingShift || _totalDuration != kDurationUnavailable) {
+	if (_loopingShift) {
 		return 0;
 	}
 	const auto result = DurationByPacket(packet, track.streamTimeBase());
@@ -476,7 +516,7 @@ int Player::durationByPacket(
 }
 
 void Player::setDurationByPackets() {
-	if (_loopingShift || _totalDuration != kDurationUnavailable) {
+	if (_loopingShift) {
 		return;
 	}
 	const auto duration = std::max(
@@ -484,9 +524,9 @@ void Player::setDurationByPackets() {
 		_durationByLastVideoPacket);
 	if (duration > 1) {
 		_durationByPackets = duration;
-	} else {
+	} else if (_totalDuration == kDurationUnavailable) {
 		LOG(("Streaming Error: Bad total duration by packets: %1"
-			).arg(duration));
+				).arg(duration));
 		fileError(Error::InvalidData);
 	}
 }
@@ -574,9 +614,13 @@ crl::time Player::loadInAdvanceFor() const {
 }
 
 crl::time Player::computeTotalDuration() const {
+	if (_totalDuration == kTimeUnknown) {
+		return kTimeUnknown;
+	}
+	const auto byPackets = crl::time(_durationByPackets.load());
 	if (_totalDuration != kDurationUnavailable) {
-		return _totalDuration;
-	} else if (const auto byPackets = _durationByPackets.load()) {
+		return std::max(_totalDuration, byPackets);
+	} else if (byPackets) {
 		return byPackets;
 	}
 	return kDurationUnavailable;
@@ -586,10 +630,13 @@ crl::time Player::computeAudioDuration() const {
 	Expects(_audio != nullptr);
 
 	const auto result = _audio->streamDuration();
+	if (result == kTimeUnknown) {
+		return kTimeUnknown;
+	}
+	const auto byPackets = crl::time(_durationByLastAudioPacket);
 	if (result != kDurationUnavailable) {
-		return result;
-	} else if ((_loopingShift || _readTillEnd)
-		&& _durationByLastAudioPacket) {
+		return std::max(result, byPackets);
+	} else if ((_loopingShift || _readTillEnd) && byPackets) {
 		// We looped, so it already holds full stream duration.
 		return _durationByLastAudioPacket;
 	}
@@ -600,10 +647,13 @@ crl::time Player::computeVideoDuration() const {
 	Expects(_video != nullptr);
 
 	const auto result = _video->streamDuration();
+	if (result == kTimeUnknown) {
+		return kTimeUnknown;
+	}
+	const auto byPackets = crl::time(_durationByLastVideoPacket);
 	if (result != kDurationUnavailable) {
-		return result;
-	} else if ((_loopingShift || _readTillEnd)
-		&& _durationByLastVideoPacket) {
+		return std::max(result, byPackets);
+	} else if ((_loopingShift || _readTillEnd) && byPackets) {
 		// We looped, so it already holds full stream duration.
 		return _durationByLastVideoPacket;
 	}

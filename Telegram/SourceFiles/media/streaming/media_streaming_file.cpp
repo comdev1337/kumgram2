@@ -247,15 +247,24 @@ void File::Context::seekToPosition(
 	//	return;
 	//}
 	//
+	const auto requested = std::max(position, crl::time(0));
 	error = av_seek_frame(
 		format,
 		stream.index,
-		FFmpeg::TimeToPts(
-			std::clamp(position, crl::time(0), stream.duration - 1),
-			stream.timeBase),
+		FFmpeg::TimeToPts(requested, stream.timeBase),
 		AVSEEK_FLAG_BACKWARD);
 	if (!error) {
 		return;
+	}
+	if (requested > stream.duration - 1) {
+		error = av_seek_frame(
+			format,
+			stream.index,
+			FFmpeg::TimeToPts(stream.duration - 1, stream.timeBase),
+			AVSEEK_FLAG_BACKWARD);
+		if (!error) {
+			return;
+		}
 	}
 	return logFatal(qstr("av_seek_frame"), error);
 }
@@ -320,9 +329,13 @@ void File::Context::start(StartOptions options) {
 		sendFullInCache(true);
 	}
 	if (options.seekable && (video.codec || audio.codec)) {
+		const auto useAudioForSeek = video.codec
+				&& audio.codec
+				&& (audio.duration > video.duration)
+				&& (options.position >= video.duration);
 		seekToPosition(
 			format.get(),
-			video.codec ? video : audio,
+			useAudioForSeek ? audio : (video.codec ? video : audio),
 			options.position);
 	}
 	if (unroll()) {

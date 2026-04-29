@@ -250,8 +250,7 @@ void VideoTrackObject::process(std::vector<FFmpeg::Packet> &&packets) {
 }
 
 int VideoTrackObject::durationByPacket(const FFmpeg::Packet &packet) {
-	// We've set this value on the first cycle.
-	if (_loopingShift || _stream.duration != kDurationUnavailable) {
+	if (_loopingShift) {
 		return 0;
 	}
 	const auto result = FFmpeg::DurationByPacket(packet, _stream.timeBase);
@@ -343,11 +342,11 @@ bool VideoTrackObject::loopAround() {
 }
 
 crl::time VideoTrackObject::computeDuration() const {
+	const auto byPackets = crl::time(_durationByLastPacket);
 	if (_stream.duration != kDurationUnavailable) {
-		return _stream.duration;
-	} else if ((_loopingShift || _readTillEnd) && _durationByLastPacket) {
-		// We looped, so it already holds full stream duration.
-		return _durationByLastPacket;
+		return std::max(_stream.duration, byPackets);
+	} else if ((_loopingShift || _readTillEnd) && byPackets) {
+		return byPackets;
 	}
 	return kDurationUnavailable;
 }
