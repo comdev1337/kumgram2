@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/toast/toast.h"
 #include "ui/widgets/popup_menu.h"
 #include "base/qthelp_regex.h"
+#include "base/qthelp_url.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "base/random.h"
 #include "storage/storage_account.h"
@@ -85,6 +86,34 @@ constexpr auto kReminderSetToastDuration = 4 * crl::time(1000);
 
 [[nodiscard]] bool HiddenUrlRequiresConfirmation(const QUrl &url) {
 	return UrlRequiresConfirmation(url) || IsTelegramShortLinkHost(url);
+}
+
+[[nodiscard]] bool IsTelegramBotStartLink(const QUrl &url) {
+	using namespace qthelp;
+
+	if (url.scheme().compare(u"tg"_q, Qt::CaseInsensitive) == 0) {
+		if (url.host().compare(u"resolve"_q, Qt::CaseInsensitive) != 0) {
+			return false;
+		}
+		const auto params = url_parse_params(
+			url.query(),
+			UrlParamNameTransform::ToLower);
+		return !params.value(u"domain"_q).isEmpty()
+			&& !params.value(u"start"_q).isEmpty();
+	} else if (!IsTelegramShortLinkHost(url)) {
+		return false;
+	}
+	const auto usernamePath = regex_match(
+		u"^/[a-zA-Z0-9\\.\\_]+/?$"_q,
+		url.path(),
+		RegExOption::CaseInsensitive).valid();
+	if (!usernamePath) {
+		return false;
+	}
+	const auto params = url_parse_params(
+		url.query(),
+		UrlParamNameTransform::ToLower);
+	return !params.value(u"start"_q).isEmpty();
 }
 
 // Possible context owners: media viewer, profile, history widget.
@@ -248,6 +277,9 @@ QString HiddenUrlClickHandler::dragText() const {
 }
 
 void HiddenUrlClickHandler::Open(QString url, QVariant context) {
+	const auto originalUrl = url;
+	const auto originalParsedUrl = QUrl::fromUserInput(originalUrl);
+	const auto botStartLink = IsTelegramBotStartLink(originalParsedUrl);
 	url = Core::TryConvertUrlToLocal(url);
 	if (Core::InternalPassportOrOAuthLink(url)) {
 		return;
@@ -256,23 +288,95 @@ void HiddenUrlClickHandler::Open(QString url, QVariant context) {
 	const auto open = [=] {
 		UrlClickHandler::Open(url, context);
 	};
+	const auto showConfirmation = [&](QString displayUrl) {
+		const auto my = context.value<ClickHandlerContext>();
+		if (!my.show) {
+			Core::App().hideMediaView();
+		}
+		const auto controller = my.sessionWindow.get();
+		const auto use = controller
+			? &controller->window()
+			: Core::App().activeWindow();
+		auto box = Box([=](not_null<Ui::GenericBox*> box) {
+			Ui::ConfirmBox(box, {
+				.text = (tr::lng_open_this_link(tr::now)),
+				.confirmed = [=](Fn<void()> hide) { hide(); open(); },
+				.confirmText = tr::lng_open_link(),
+				.labelStyle = my.dark ? &st::groupCallBoxLabel : nullptr,
+			});
+			const auto &st = my.dark
+				? st::groupCallBoxLabel
+				: st::boxLabel;
+			box->addSkip(st.style.lineHeight - st::boxPadding.bottom());
+			const auto url = box->addRow(
+				object_ptr<Ui::FlatLabel>(
+					box,
+					rpl::single(BoldDomainInUrl(displayUrl)),
+					st));
+			url->setContextMenuHook([=](
+					Ui::FlatLabel::ContextMenuRequest request) {
+				const auto copyContextText = [=] {
+					TextUtilities::SetClipboardText(
+						TextForMimeData::Simple(displayUrl));
+				};
+				if (request.fullSelection) {
+					request.menu->addAction(
+						tr::lng_context_copy_link(tr::now),
+						copyContextText);
+				} else if (request.uponSelection
+					&& !request.fullSelection) {
+					const auto selection = request.selection;
+					const auto copySelectedText = [=] {
+						TextUtilities::SetClipboardText(
+							TextForMimeData::Simple(
+								displayUrl.mid(
+									selection.from,
+									selection.to - selection.from)));
+					};
+					request.menu->addAction(
+						tr::lng_context_copy_selected(tr::now),
+						copySelectedText);
+				} else if (request.selection.empty()) {
+					request.menu->addAction(
+						tr::lng_context_copy_link(tr::now),
+						copyContextText);
+				}
+			});
+			url->setSelectable(true);
+			url->setContextCopyText(tr::lng_context_copy_link(tr::now));
+		});
+		if (my.show) {
+			my.show->showBox(std::move(box));
+		} else if (use) {
+			use->show(std::move(box));
+			use->activate();
+		}
+	};
 	if (url.startsWith(u"tg://"_q, Qt::CaseInsensitive)
 		|| url.startsWith(u"internal:"_q, Qt::CaseInsensitive)) {
-		UrlClickHandler::Open(url, QVariant::fromValue([&] {
-			auto result = context.value<ClickHandlerContext>();
-			result.mayShowConfirmation = !base::IsCtrlPressed();
-			return result;
-		}()));
+		if (botStartLink && !base::IsCtrlPressed()) {
+			const auto displayed = originalParsedUrl.isValid()
+				? originalParsedUrl.toDisplayString()
+				: originalUrl;
+			const auto displayUrl = !IsSuspicious(displayed)
+				? displayed
+				: originalParsedUrl.isValid()
+				? QString::fromUtf8(originalParsedUrl.toEncoded())
+				: ShowEncoded(displayed);
+			showConfirmation(displayUrl);
+		} else {
+			UrlClickHandler::Open(url, QVariant::fromValue([&] {
+				auto result = context.value<ClickHandlerContext>();
+				result.mayShowConfirmation = !base::IsCtrlPressed();
+				return result;
+			}()));
+		}
 	} else {
 		const auto parsedUrl = url.startsWith(u"tonsite://"_q)
 			? QUrl(url)
 			: QUrl::fromUserInput(url);
 		if (HiddenUrlRequiresConfirmation(parsedUrl)
 			&& !base::IsCtrlPressed()) {
-			const auto my = context.value<ClickHandlerContext>();
-			if (!my.show) {
-				Core::App().hideMediaView();
-			}
 			const auto displayed = parsedUrl.isValid()
 				? parsedUrl.toDisplayString()
 				: url;
@@ -281,64 +385,7 @@ void HiddenUrlClickHandler::Open(QString url, QVariant context) {
 				: parsedUrl.isValid()
 				? QString::fromUtf8(parsedUrl.toEncoded())
 				: ShowEncoded(displayed);
-			const auto controller = my.sessionWindow.get();
-			const auto use = controller
-				? &controller->window()
-				: Core::App().activeWindow();
-			auto box = Box([=](not_null<Ui::GenericBox*> box) {
-				Ui::ConfirmBox(box, {
-					.text = (tr::lng_open_this_link(tr::now)),
-					.confirmed = [=](Fn<void()> hide) { hide(); open(); },
-					.confirmText = tr::lng_open_link(),
-					.labelStyle = my.dark ? &st::groupCallBoxLabel : nullptr,
-				});
-				const auto &st = my.dark
-					? st::groupCallBoxLabel
-					: st::boxLabel;
-				box->addSkip(st.style.lineHeight - st::boxPadding.bottom());
-				const auto url = box->addRow(
-					object_ptr<Ui::FlatLabel>(
-						box,
-						rpl::single(BoldDomainInUrl(displayUrl)),
-						st));
-				url->setContextMenuHook([=](
-						Ui::FlatLabel::ContextMenuRequest request) {
-					const auto copyContextText = [=] {
-						TextUtilities::SetClipboardText(
-							TextForMimeData::Simple(displayUrl));
-					};
-					if (request.fullSelection) {
-						request.menu->addAction(
-							tr::lng_context_copy_link(tr::now),
-							copyContextText);
-					} else if (request.uponSelection
-						&& !request.fullSelection) {
-						const auto selection = request.selection;
-						const auto copySelectedText = [=] {
-							TextUtilities::SetClipboardText(
-								TextForMimeData::Simple(
-									displayUrl.mid(
-										selection.from,
-										selection.to - selection.from)));
-						};
-						request.menu->addAction(
-							tr::lng_context_copy_selected(tr::now),
-							copySelectedText);
-					} else if (request.selection.empty()) {
-						request.menu->addAction(
-							tr::lng_context_copy_link(tr::now),
-							copyContextText);
-					}
-				});
-				url->setSelectable(true);
-				url->setContextCopyText(tr::lng_context_copy_link(tr::now));
-			});
-			if (my.show) {
-				my.show->showBox(std::move(box));
-			} else if (use) {
-				use->show(std::move(box));
-				use->activate();
-			}
+			showConfirmation(displayUrl);
 		} else {
 			open();
 		}
