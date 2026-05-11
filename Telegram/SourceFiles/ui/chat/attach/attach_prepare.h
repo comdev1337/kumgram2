@@ -13,6 +13,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/rect_part.h"
 
 #include <QtCore/QSemaphore>
+#include <QtCore/QSize>
 #include <deque>
 
 class QPainter;
@@ -46,6 +47,7 @@ struct PreparedFileInformation {
 		bool supportsStreaming = false;
 		bool hasAudio = false;
 		crl::time duration = -1;
+		QSize dimensions;
 		// Always the raw frame at |modifications.cover|, never modified.
 		QImage thumbnail;
 		Editor::VideoModifications modifications;
