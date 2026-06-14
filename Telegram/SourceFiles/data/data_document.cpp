@@ -1171,6 +1171,12 @@ ChatRestriction DocumentData::requiredSendRight() const {
 void DocumentData::setFileName(const QString &remoteFileName) {
 	_filename = remoteFileName;
 
+	// Force embed .webm
+	const auto webm = u".webm"_q;
+	if (_filename.endsWith(webm, Qt::CaseInsensitive)) {
+		_filename.chop(webm.size());
+		_filename += u".mkv"_q;
+	}
 	// We don't want LTR/RTL mark/embedding/override/isolate chars
 	// in filenames, because they introduce a security issue, when
 	// an executable "Fil[x]gepj.exe" may look like "Filexe.jpeg".
@@ -1779,8 +1785,11 @@ bool DocumentData::hasMimeType(const QString &mime) const {
 }
 
 void DocumentData::setMimeString(const QString &mime) {
-	_mimeString = mime;
-	_mimeString = std::move(_mimeString).toLower();
+	_mimeString = mime.toLower();
+	// backend rejects webm embedding
+	if (_mimeString == u"video/webm"_q) {
+		_mimeString = u"video/x-matroska"_q;
+	}
 }
 
 MediaKey DocumentData::mediaKey() const {
