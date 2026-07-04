@@ -1786,9 +1786,11 @@ bool DocumentData::hasMimeType(const QString &mime) const {
 
 void DocumentData::setMimeString(const QString &mime) {
 	_mimeString = mime.toLower();
-	// backend rejects webm embedding
+	// replace video MIMEs that the backend doesn't embed
 	if (_mimeString == u"video/webm"_q) {
 		_mimeString = u"video/x-matroska"_q;
+	} else if (_mimeString == u"video/x-m4v"_q) {
+		_mimeString = u"video/mp4"_q;
 	}
 }
 
