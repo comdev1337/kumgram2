@@ -3147,10 +3147,16 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 	const auto addPhotoActions = [&](not_null<PhotoData*> photo, HistoryItem *item) {
 		const auto media = photo->activeMediaView();
 		const auto itemId = item ? item->fullId() : FullMsgId();
-		if (!photo->isNull() && media && media->loaded() && !hasCopyMediaRestriction(item)) {
+		const auto loaded = !photo->isNull() && media && media->loaded();
+		const auto allowRestrictedChannel = item
+			&& item->history()->peer->isBroadcast();
+		if (loaded
+			&& (allowRestrictedChannel || !hasCopyMediaRestriction(item))) {
 			_menu->addAction(tr::lng_context_save_image(tr::now), base::fn_delayed(st::defaultDropdownMenu.menu.ripple.hideDuration, this, [=] {
 				savePhotoToFile(photo);
 			}), &st::menuIconSaveImage);
+		}
+		if (loaded && !hasCopyMediaRestriction(item)) {
 			_menu->addAction(tr::lng_context_copy_image(tr::now), [=] {
 				copyContextImage(photo, itemId);
 			}, &st::menuIconCopy);
@@ -3196,23 +3202,28 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 				showContextInFolder(document);
 			}, &st::menuIconShowInFolder);
 		}
-		if (item
-			&& !hasCopyMediaRestriction(item)
-			&& !HistoryView::ItemHasTtl(item)) {
-			HistoryView::AddSaveSoundForNotifications(
-				_menu,
-				item,
-				document,
-				controller);
-			HistoryView::AddSaveDocumentAction(
-				Ui::Menu::CreateAddActionCallback(_menu),
-				item,
-				document,
-				controller);
-			HistoryView::AddCopyFilename(
-				_menu,
-				document,
-				[=] { return showCopyRestrictionForSelected(); });
+		if (item && !HistoryView::ItemHasTtl(item)) {
+			const auto hasRestriction = hasCopyMediaRestriction(item);
+			if (!hasRestriction) {
+				HistoryView::AddSaveSoundForNotifications(
+					_menu,
+					item,
+					document,
+					controller);
+			}
+			if (!hasRestriction || item->history()->peer->isBroadcast()) {
+				HistoryView::AddSaveDocumentAction(
+					Ui::Menu::CreateAddActionCallback(_menu),
+					item,
+					document,
+					controller);
+			}
+			if (!hasRestriction) {
+				HistoryView::AddCopyFilename(
+					_menu,
+					document,
+					[=] { return showCopyRestrictionForSelected(); });
+			}
 		}
 		if (document->hasAttachedStickers()) {
 			_menu->addAction(tr::lng_context_attached_stickers(tr::now), [=] {
@@ -3762,7 +3773,8 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 				}
 				if (!item->isService() && view && actionText.isEmpty()) {
 					const auto hasRestriction = hasCopyRestriction(item);
-					if (!hasRestriction
+					if ((!hasRestriction
+							|| item->history()->peer->isBroadcast())
 						&& (view->hasVisibleText() || mediaHasTextForCopy)) {
 						_menu->addAction(
 							tr::lng_context_copy_text(tr::now),
@@ -4078,6 +4090,11 @@ bool HistoryInner::showCopyMediaRestriction(not_null<HistoryItem*> item) {
 }
 
 bool HistoryInner::hasCopyRestrictionForSelected() const {
+	if (hasSelectedText()
+		&& _selectedTextItem
+		&& _selectedTextItem->history()->peer->isBroadcast()) {
+		return false;
+	}
 	if (hasCopyRestriction()) {
 		return true;
 	}
@@ -4093,6 +4110,11 @@ bool HistoryInner::hasCopyRestrictionForSelected() const {
 }
 
 bool HistoryInner::showCopyRestrictionForSelected() {
+	if (hasSelectedText()
+		&& _selectedTextItem
+		&& _selectedTextItem->history()->peer->isBroadcast()) {
+		return false;
+	}
 	for (const auto &item : _selected) {
 		if (showCopyRestriction(item)) {
 			return true;
@@ -4215,7 +4237,8 @@ void HistoryInner::saveContextGif(FullMsgId itemId) {
 
 void HistoryInner::copyContextText(FullMsgId itemId) {
 	if (const auto item = session().data().message(itemId)) {
-		if (!showCopyRestriction(item)) {
+		if (item->history()->peer->isBroadcast()
+			|| !showCopyRestriction(item)) {
 			if (const auto group = session().data().groups().find(item)) {
 				TextUtilities::SetClipboardText(HistoryGroupText(group));
 			} else {
