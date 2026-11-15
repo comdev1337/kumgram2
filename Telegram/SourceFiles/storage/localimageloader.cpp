@@ -1040,11 +1040,10 @@ void FileLoadTask::process(ProcessArgs &&args) {
 			// WHY: a soundless source sent as a video gets a silent track
 			// added, so the server still has to be told it has no sound.
 			const auto silent = gif || !video->hasAudio;
-			// A GIF is sent as an animated mp4, so re-encode anything else.
+			// A GIF is sent as an animated mp4; other containers go through as-is.
 			const auto convertForGif = gif
 				&& (filemime != u"video/mp4"_q);
-			const auto convert = (!Core::IsMimeSentAsVideo(filemime)
-					|| convertForGif)
+			const auto convert = convertForGif
 				&& !video->isWebmSticker
 				&& (filesize < Media::Encode::MaxTranscodeSourceSize());
 			if (!_forceFile
