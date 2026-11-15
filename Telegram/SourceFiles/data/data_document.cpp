@@ -443,7 +443,10 @@ void DocumentData::setattributes(
 				info->type = StickerType::Webm;
 			}
 			_duration = MillisecondsFromSeconds(data.vduration().v);
-			setMaybeSupportsStreaming(data.is_supports_streaming());
+			// supports_streaming is often left unset by bots
+			// this shouldn't ruin video streaming for no fucking reason
+			// the streaming reader rejects (and remembers) what can't stream
+			setMaybeSupportsStreaming(true);
 			if (data.is_nosound()) {
 				_flags |= Flag::SilentVideo;
 			}
