@@ -1,3 +1,45 @@
+# kumgram2
+
+Meme fork of [Telegram Desktop](https://github.com/telegramdesktop/tdesktop), kept rebased on upstream `dev`.
+
+## Features
+
+| Commit | Change |
+| --- | --- |
+| [`8216664a60`](https://github.com/comdev1337/kumgram2/commit/8216664a60) | Playback speed options: 0.1×–14×, step 0.25× (upstream caps at 0.5×–2.5×) |
+| [`356cf774cc`](https://github.com/comdev1337/kumgram2/commit/356cf774cc) | Don't pause music when a video's audio plays |
+| [`f8f0382c14`](https://github.com/comdev1337/kumgram2/commit/f8f0382c14) | Improve account-adding flow |
+| [`80eeec9d18`](https://github.com/comdev1337/kumgram2/commit/80eeec9d18) | Essential script to generate improved app icons/logos |
+| [`aaddc23902`](https://github.com/comdev1337/kumgram2/commit/aaddc23902) | Disable MSVC generating gigabytes of `.pdb` garbage on every build. Prevent 100% CPU usage. |
+| [`deb2fa7791`](https://github.com/comdev1337/kumgram2/commit/deb2fa7791) | Right-click the speed gear to toggle speedup |
+| [`5402cabac0`](https://github.com/comdev1337/kumgram2/commit/5402cabac0) | Shift + mouse wheel to set playback speed |
+| [`f62a97ca7a`](https://github.com/comdev1337/kumgram2/commit/f62a97ca7a) | Helper script to parse video API JSON |
+| [`85f8f5f730`](https://github.com/comdev1337/kumgram2/commit/85f8f5f730) | Allow forwarding fake channels (fake and gay client-side restriction) |
+| [`34c6695f44`](https://github.com/comdev1337/kumgram2/commit/34c6695f44) | Experimental: copy/paste files by reference, combine into groups, no reupload required |
+| [`c829f435ab`](https://github.com/comdev1337/kumgram2/commit/c829f435ab) | Support 8K video upload and playback |
+| [`3190ee209f`](https://github.com/comdev1337/kumgram2/commit/3190ee209f) | Follow links inside timestamps in blockquotes |
+| [`138499ce56`](https://github.com/comdev1337/kumgram2/commit/138499ce56) | Embed `.webm`, `.mkv` and `.m4v` video files |
+| [`49df737826`](https://github.com/comdev1337/kumgram2/commit/49df737826) | Script to prepare dependency build garbage |
+| [`17f3350573`](https://github.com/comdev1337/kumgram2/commit/17f3350573) | Paste Excel selections as article tables |
+| [`31dbe0b372`](https://github.com/comdev1337/kumgram2/commit/31dbe0b372) | Allow saving and copying restricted channel posts (fake and gay client-side restriction) |
+| [`316b3d4bb6`](https://github.com/comdev1337/kumgram2/commit/316b3d4bb6) | Kill malicious client-side transcoding of "unsupported" video (`.webm`, `.mkv`, `.m4v`) on upload |
+| [`d17376300b`](https://github.com/comdev1337/kumgram2/commit/d17376300b) | Ignore absolutely pointless `supports_streaming` video flag.<br>Allows playing (streaming) videos uploaded by retarded bots, whose creators do not know what [`documentAttributeVideo`](https://core.telegram.org/constructor/documentAttributeVideo) is. |
+
+## Before building
+
+1. Improve logos
+
+```bash
+./logo_improvement.sh
+```
+2. [Windows MSVC] If you do not want to stare at 5+ GiB (!) of `.pdb` garbage generated on each build
+
+```bash
+./DISABLE_PDB_GARBAGE.sh
+```
+
+---
+
 # [Telegram Desktop][telegram_desktop] – Official Messenger
 
 This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.
