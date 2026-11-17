@@ -72,5 +72,9 @@ settings.local.json
 # AI work folder (session-specific, not for version control)
 .ai
 
+# Private local-* agent skills (nested repo at .agents/skills/.git);
+/.agents/skills/local-*/
+/.agents/skills/.gitignore
+
 # Generated changelog page (built by CI, deployed to GitHub Pages)
 /docs/changelog/
